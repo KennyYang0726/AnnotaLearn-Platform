@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: annotalearn-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: annotalearn
+      POSTGRES_PASSWORD: annotalearn
+      POSTGRES_DB: annotalearn
+    ports:
+      - "5432:5432"
+    volumes:
+      - annotalearn_pgdata:/var/lib/postgresql/data
+
+volumes:
+  annotalearn_pgdata:

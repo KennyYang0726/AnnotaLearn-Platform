@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Environment variables / secrets
+.env*
+!.env.example
+
+# Prisma generated client (migrations are intentionally committed)
+generated/prisma/
+
+# Local uploaded files
+storage/uploads/*
+!storage/uploads/.gitkeep
+
+# Local database data / backups
+pgdata/
+postgres-data/
+*.dump
+*.backup
+
+# Vercel
+.vercel/
+
+# Logs / generated files
+*.log
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store

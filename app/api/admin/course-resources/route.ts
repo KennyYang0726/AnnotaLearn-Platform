@@ -1,0 +1,8 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { prisma } from "@/lib/db";
+import { requireApiAdmin } from "@/lib/auth/api";
+const schema = z.object({ courseId: z.string().min(1), assetId: z.string().min(1), title: z.string().trim().min(1).max(180) });
+async function parse(request: Request) { const auth = await requireApiAdmin(); if (!auth.ok) return { response: NextResponse.json({ error: auth.error }, { status: auth.status }) }; const body = schema.safeParse(await request.json().catch(() => null)); if (!body.success) return { response: NextResponse.json({ error: "欄位格式錯誤" }, { status: 400 }) }; return { data: body.data }; }
+export async function POST(request: Request) { const parsed = await parse(request); if ("response" in parsed) return parsed.response; const count = await prisma.courseResource.count({ where: { courseId: parsed.data.courseId } }); await prisma.courseResource.upsert({ where: { courseId_assetId: { courseId: parsed.data.courseId, assetId: parsed.data.assetId } }, update: { title: parsed.data.title }, create: { ...parsed.data, sortOrder: count } }); return NextResponse.json({ ok: true }); }
+export async function DELETE(request: Request) { const parsed = await parse(request); if ("response" in parsed) return parsed.response; const resource = await prisma.courseResource.findUnique({ where: { courseId_assetId: { courseId: parsed.data.courseId, assetId: parsed.data.assetId } }, include: { _count: { select: { submissions: true } } } }); if (resource?._count.submissions) return NextResponse.json({ error: "此教材已有學生繳交紀錄，為避免資料遺失不可直接移除" }, { status: 409 }); if (resource) await prisma.courseResource.delete({ where: { id: resource.id } }); return NextResponse.json({ ok: true }); }

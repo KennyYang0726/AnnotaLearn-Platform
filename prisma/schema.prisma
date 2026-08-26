@@ -1,0 +1,149 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+}
+
+enum NoteType {
+  KEY_POINT
+  QUESTION
+}
+
+enum HighlightType {
+  IMPORTANT
+  QUESTION
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  username           String              @unique
+  displayName        String?
+  departmentGrade    String?
+  schoolEmail        String?
+  externalEmail      String?
+  rosterNote         String?
+  passwordHash       String
+  role               Role                @default(STUDENT)
+  mustChangePassword Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  enrollments        Enrollment[]
+  submissions        ReadingSubmission[]
+}
+
+model Semester {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  createdAt DateTime @default(now())
+  courses   Course[]
+}
+
+model Course {
+  id          String           @id @default(cuid())
+  courseCode  String           @unique
+  name        String
+  semesterId  String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  semester    Semester         @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  enrollments Enrollment[]
+  resources   CourseResource[]
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+}
+
+model Asset {
+  id              String           @id @default(cuid())
+  originalName    String
+  displayName     String
+  storageProvider String
+  storageKey      String           @unique
+  storageUrl      String?
+  fileSize        Int
+  pageCount       Int?
+  mimeType        String           @default("application/pdf")
+  createdAt       DateTime         @default(now())
+  resources       CourseResource[]
+}
+
+model CourseResource {
+  id          String              @id @default(cuid())
+  courseId    String
+  assetId     String
+  title       String
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  asset       Asset               @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  submissions ReadingSubmission[]
+
+  @@unique([courseId, assetId])
+  @@index([courseId, sortOrder])
+}
+
+model ReadingSubmission {
+  id          String           @id @default(cuid())
+  userId      String
+  resourceId  String
+  status      SubmissionStatus @default(SUBMITTED)
+  lastPage    Int
+  submittedAt DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource    CourseResource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  highlights  Highlight[]
+
+  @@unique([userId, resourceId])
+  @@index([resourceId])
+}
+
+model Note {
+  id           String            @id @default(cuid())
+  submissionId String
+  clientId     String
+  page         Int
+  type         NoteType
+  content      String
+  createdAt    DateTime          @default(now())
+  submission   ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, page])
+}
+
+model Highlight {
+  id            String            @id @default(cuid())
+  submissionId  String
+  clientId      String
+  page          Int
+  type          HighlightType
+  color         String
+  extractedText String?
+  geometry      Json
+  createdAt     DateTime          @default(now())
+  submission    ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, page])
+}
