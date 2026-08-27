@@ -278,3 +278,126 @@ th { color: var(--muted); font-size: 13px; }
   font-weight: 750;
   line-height: 1.65;
 }
+
+/* 課程設定與教材排序 */
+.course-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+.course-setting-row:first-of-type { border-top: 0; padding-top: 0; }
+.course-setting-error { grid-column: 1 / -1; }
+.setting-on { background: #e9f8f0; color: var(--success); }
+.course-resource-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+.course-resource-main { min-width: 0; }
+.course-resource-actions { display: flex; gap: 10px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.resource-order-actions { display: flex; gap: 6px; align-items: center; }
+
+/* 閱讀/繳交紀錄篩選 */
+.activity-filter-panel { box-shadow: none; }
+.activity-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.activity-filter-grid label { font-size: 13px; }
+.activity-filter-student { grid-column: span 2; }
+.activity-filter-actions { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.filter-summary {
+  margin-top: 12px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: #f4f6fa;
+  color: var(--muted);
+  font-size: 13px;
+}
+.filter-summary strong { color: var(--text); }
+
+/* 課程劃記總覽日期篩選 */
+.admin-highlight-date-filter {
+  display: grid;
+  grid-template-columns: minmax(150px, 190px) minmax(150px, 190px) minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: #fafbfe;
+}
+.admin-highlight-date-filter label { font-size: 13px; }
+.admin-highlight-date-filter .filter-summary { grid-column: 1 / -1; margin-top: 0; }
+
+/* PDF/筆記全畫面切換 */
+.reader-page { grid-template-rows: auto 1fr; }
+.reader-topbar { min-height: 58px; height: auto; padding-top: 7px; padding-bottom: 7px; flex-wrap: wrap; }
+.reader-topbar-actions { display: flex; gap: 12px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.reader-view-switcher { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.notes-full-page-controls { border-bottom: 0; background: #f8f9fc; }
+
+@media (max-width: 900px) {
+  .activity-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .activity-filter-student { grid-column: span 1; }
+  .admin-highlight-date-filter { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reader-topbar-actions { width: 100%; justify-content: space-between; }
+  .course-setting-row, .course-resource-row { grid-template-columns: 1fr; }
+  .course-resource-actions { justify-content: flex-start; }
+}
+
+@media (max-width: 620px) {
+  .activity-filter-grid, .admin-highlight-date-filter { grid-template-columns: 1fr; }
+  .activity-filter-student { grid-column: auto; }
+  .reader-view-switcher { width: 100%; }
+  .reader-view-switcher .btn { flex: 1 1 auto; }
+}
+
+/* 逐頁理解狀態與閱讀研究紀錄 */
+.reader-tool-divider { width: 1px; height: 28px; background: var(--border); margin: 0 2px; }
+.understanding-button { background: #eef1f6; color: #5f697e; border: 1px solid transparent; }
+.understanding-active-yes { background: #e7f6ee; color: #12653e; border-color: #a9ddc2; }
+.understanding-active-no { background: #fff0ef; color: #a12a20; border-color: #efb3ad; }
+.reader-page-gate { color: #8b5b11; font-size: 12px; font-weight: 700; }
+.reader-gate-message { color: var(--danger); font-size: 13px; font-weight: 700; }
+.reader-tracking-notice { color: #8b5b11; font-size: 12px; }
+.understanding-text-yes { color: var(--success); font-weight: 750; }
+.understanding-text-no { color: var(--danger); font-weight: 750; }
+
+.reading-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.reading-summary-item {
+  min-width: 0;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: #f9fafc;
+  display: grid;
+  gap: 4px;
+}
+.reading-summary-item > span { color: var(--muted); font-size: 12px; font-weight: 700; }
+.reading-summary-item > strong { font-size: 22px; line-height: 1.25; }
+.reading-summary-item > small { color: var(--muted); line-height: 1.45; overflow-wrap: anywhere; }
+.understanding-history { border-top: 1px solid var(--border); padding-top: 14px; }
+.understanding-history > summary { cursor: pointer; font-weight: 800; }
+.understanding-event-list { display: grid; gap: 6px; margin-top: 10px; }
+.understanding-event-row { display: grid; grid-template-columns: 70px 110px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 9px; background: #f7f9fc; }
+.record-view-select-row { display: flex; justify-content: flex-start; }
+.record-view-select-row label { width: min(360px, 100%); }
+.activity-day-list { display: flex; flex-wrap: wrap; gap: 7px; }
+
+@media (max-width: 1100px) {
+  .reading-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .reading-summary-grid { grid-template-columns: 1fr 1fr; }
+  .understanding-event-row { grid-template-columns: 55px minmax(0, 1fr); }
+  .understanding-event-row .subtle { grid-column: 1 / -1; }
+  .reader-tool-divider { display: none; }
+}
+@media (max-width: 480px) {
+  .reading-summary-grid { grid-template-columns: 1fr; }
+}

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import AdminHighlightViewer from "@/components/admin/AdminHighlightViewer";
+import { formatTaipeiDate } from "@/lib/activity-filter";
 
 type Geometry = { points?: [number, number][] };
 
@@ -20,7 +21,7 @@ export default async function HighlightResourceDetailPage({ params }: { params: 
       submissions: {
         include: {
           user: true,
-          highlights: { orderBy: [{ page: "asc" }, { createdAt: "asc" }] },
+          highlights: { orderBy: [{ page: "asc" }, { recordedAt: "asc" }] },
         },
       },
     },
@@ -49,6 +50,7 @@ export default async function HighlightResourceDetailPage({ params }: { params: 
       page: highlight.page,
       color: highlight.color === "RED" ? "RED" as const : "YELLOW" as const,
       points: Array.isArray(geometry.points) ? geometry.points : [],
+      recordedDate: formatTaipeiDate(highlight.recordedAt),
     };
   })).filter((highlight) => highlight.points.length >= 2);
 

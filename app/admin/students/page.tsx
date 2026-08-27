@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import DeleteStudentButton from "@/components/admin/DeleteStudentButton";
+import ResetStudentPasswordButton from "@/components/admin/ResetStudentPasswordButton";
 
 export default async function StudentsPage() {
   const students = await prisma.user.findMany({
@@ -29,7 +30,7 @@ export default async function StudentsPage() {
             <td>{s._count.enrollments}</td>
             <td>{s._count.submissions}</td>
             <td>{new Intl.DateTimeFormat("zh-TW").format(s.createdAt)}</td>
-            <td className="action-column"><DeleteStudentButton studentId={s.id} username={s.username} displayName={s.displayName} enrollmentCount={s._count.enrollments} submissionCount={s._count.submissions} /></td>
+            <td className="action-column"><div className="row" style={{ flexWrap: "nowrap", gap: 8 }}><ResetStudentPasswordButton studentId={s.id} username={s.username} displayName={s.displayName} /><DeleteStudentButton studentId={s.id} username={s.username} displayName={s.displayName} enrollmentCount={s._count.enrollments} submissionCount={s._count.submissions} /></div></td>
           </tr>)}</tbody>
         </table>
       </div>

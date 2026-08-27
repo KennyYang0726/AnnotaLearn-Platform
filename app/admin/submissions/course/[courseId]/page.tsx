@@ -2,6 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 
+function formatTaipeiPeriod(date: Date) {
+  return new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "medium", timeStyle: "short" }).format(date);
+}
+
+
 export default async function SubmissionCoursePage({ params }: { params: Promise<{ courseId: string }> }) {
   const { courseId } = await params;
   const course = await prisma.course.findUnique({
@@ -26,6 +31,7 @@ export default async function SubmissionCoursePage({ params }: { params: Promise
       <div className="badge" style={{ marginTop: 14 }}>{course.semester.code}</div>
       <h1 className="h1" style={{ marginTop: 8 }}>{course.name}</h1>
       <div className="subtle">課程ID：{course.courseCode}</div>
+      <div className="subtle" style={{ marginTop: 4 }}>課程期間：{formatTaipeiPeriod(course.startAt)}～{formatTaipeiPeriod(course.endAt)}</div>
     </div>
 
     <section className="card panel">

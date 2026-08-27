@@ -26,6 +26,11 @@ enum SubmissionStatus {
   SUBMITTED
 }
 
+enum PageUnderstanding {
+  UNDERSTOOD
+  NOT_UNDERSTOOD
+}
+
 model User {
   id                 String              @id @default(cuid())
   username           String              @unique
@@ -40,7 +45,11 @@ model User {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   enrollments        Enrollment[]
-  submissions        ReadingSubmission[]
+  submissions              ReadingSubmission[]
+  pageUnderstandingStates  PageUnderstandingState[]
+  pageUnderstandingEvents  PageUnderstandingEvent[]
+  pageVisits               PageVisit[]
+  courseDailyActivities    CourseDailyActivity[]
 }
 
 model Semester {
@@ -57,9 +66,13 @@ model Course {
   semesterId  String
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
+  startAt     DateTime
+  endAt       DateTime
+  allowMaterialDownload Boolean @default(false)
   semester    Semester         @relation(fields: [semesterId], references: [id], onDelete: Restrict)
   enrollments Enrollment[]
   resources   CourseResource[]
+  dailyActivities CourseDailyActivity[]
 }
 
 model Enrollment {
@@ -97,7 +110,10 @@ model CourseResource {
   createdAt   DateTime            @default(now())
   course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
   asset       Asset               @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  submissions ReadingSubmission[]
+  submissions             ReadingSubmission[]
+  pageUnderstandingStates PageUnderstandingState[]
+  pageUnderstandingEvents PageUnderstandingEvent[]
+  pageVisits              PageVisit[]
 
   @@unique([courseId, assetId])
   @@index([courseId, sortOrder])
@@ -128,9 +144,11 @@ model Note {
   type         NoteType
   content      String
   createdAt    DateTime          @default(now())
+  recordedAt   DateTime          @default(now())
   submission   ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
   @@index([submissionId, page])
+  @@index([submissionId, recordedAt])
 }
 
 model Highlight {
@@ -143,7 +161,74 @@ model Highlight {
   extractedText String?
   geometry      Json
   createdAt     DateTime          @default(now())
+  recordedAt    DateTime          @default(now())
   submission    ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
   @@index([submissionId, page])
+  @@index([submissionId, recordedAt])
+}
+
+
+model PageUnderstandingState {
+  id         String            @id @default(cuid())
+  userId     String
+  resourceId String
+  page       Int
+  status     PageUnderstanding
+  selectedAt DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   CourseResource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId, page])
+  @@index([resourceId, page, status])
+  @@index([userId, resourceId])
+}
+
+model PageUnderstandingEvent {
+  id         String            @id @default(cuid())
+  userId     String
+  resourceId String
+  page       Int
+  status     PageUnderstanding
+  recordedAt DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   CourseResource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, page, status, recordedAt])
+  @@index([userId, resourceId, recordedAt])
+}
+
+model PageVisit {
+  id              String         @id @default(cuid())
+  clientVisitId   String         @unique
+  readerSessionId String
+  userId          String
+  resourceId      String
+  page            Int
+  enteredAt       DateTime       @default(now())
+  lastSeenAt      DateTime       @default(now())
+  leftAt          DateTime?
+  durationSeconds Int            @default(0)
+  endReason       String?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource        CourseResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, userId, page, enteredAt])
+  @@index([userId, resourceId, readerSessionId, leftAt])
+}
+
+model CourseDailyActivity {
+  id              String   @id @default(cuid())
+  courseId        String
+  userId          String
+  activityDate    DateTime @db.Date
+  firstActivityAt DateTime @default(now())
+  lastActivityAt  DateTime @default(now())
+  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId, activityDate])
+  @@index([courseId, activityDate])
+  @@index([userId, courseId, activityDate])
 }

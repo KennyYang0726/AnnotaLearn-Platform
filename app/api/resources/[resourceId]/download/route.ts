@@ -12,6 +12,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ res
   const { resourceId } = await params;
   const resource = await getAuthorizedResource(resourceId, auth.user);
   if (!resource) return NextResponse.json({ error: "找不到教材或沒有存取權限" }, { status: 404 });
+  if (auth.user.role === "STUDENT" && !resource.course.allowMaterialDownload) return NextResponse.json({ error: "此課程未開放教材下載" }, { status: 403 });
 
   try {
     const response = await createAssetDownloadResponse(resource.asset);

@@ -27,13 +27,14 @@ export default async function CoursesPage() {
           <h2 className="h2">課程列表</h2>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>學期</th><th>課程</th><th>ID</th><th>學生</th><th>教材</th><th className="action-column">操作</th></tr></thead>
+              <thead><tr><th>學期</th><th>課程</th><th>ID</th><th>課程期間</th><th>學生</th><th>教材</th><th className="action-column">操作</th></tr></thead>
               <tbody>
                 {courses.map((course) => (
                   <tr key={course.id}>
                     <td>{course.semester.code}</td>
                     <td><Link href={`/admin/courses/${course.id}`}><strong>{course.name}</strong></Link></td>
                     <td>{course.courseCode}</td>
+                    <td>{new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "short", timeStyle: "short" }).format(course.startAt)}<br/><span className="subtle">至 {new Intl.DateTimeFormat("zh-TW", { timeZone: "Asia/Taipei", dateStyle: "short", timeStyle: "short" }).format(course.endAt)}</span></td>
                     <td>{course._count.enrollments}</td>
                     <td>{course._count.resources}</td>
                     <td className="action-column">

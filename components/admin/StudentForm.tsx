@@ -9,6 +9,8 @@ type Created = { userId: string; username: string; defaultPassword: string };
 export default function StudentForm({ courses }: { courses: Course[] }) {
   const router = useRouter();
   const [studentId, setStudentId] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [departmentGrade, setDepartmentGrade] = useState("");
   const [error, setError] = useState("");
   const [created, setCreated] = useState<Created | null>(null);
   const [courseId, setCourseId] = useState(courses[0]?.id || "");
@@ -17,9 +19,10 @@ export default function StudentForm({ courses }: { courses: Course[] }) {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setError(""); setCreated(null); setCourseMessage("");
-    const response = await fetch("/api/admin/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId }) });
+    const response = await fetch("/api/admin/students", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ studentId, displayName, departmentGrade }) });
     const data = await response.json(); if (!response.ok) return setError(data.error || "新增失敗");
-    setCreated({ userId: data.userId, username: data.username, defaultPassword: data.defaultPassword }); setStudentId(""); router.refresh();
+    setCreated({ userId: data.userId, username: data.username, defaultPassword: data.defaultPassword });
+    setStudentId(""); setDisplayName(""); setDepartmentGrade(""); router.refresh();
   }
 
   async function assignCourse() {
@@ -37,6 +40,8 @@ export default function StudentForm({ courses }: { courses: Course[] }) {
   return <div className="stack">
     <form className="stack" onSubmit={submit}>
       <label>學號<input value={studentId} onChange={(e) => setStudentId(e.target.value.toUpperCase())} placeholder="B1042019" required /></label>
+      <label>姓名（選填）<input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="學生姓名" maxLength={100} /></label>
+      <label>系籍（選填）<input value={departmentGrade} onChange={(e) => setDepartmentGrade(e.target.value)} placeholder="例如：資訊工程學系3" maxLength={120} /></label>
       {error && <div className="error">{error}</div>}
       <button className="btn btn-primary">確認新增學生</button>
     </form>
