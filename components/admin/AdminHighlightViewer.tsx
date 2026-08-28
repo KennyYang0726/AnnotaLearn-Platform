@@ -6,7 +6,7 @@ import { loadPdfJs } from "@/lib/pdf-client";
 type Point = [number, number];
 type HighlightColor = "RED" | "YELLOW";
 type Student = { id: string; username: string; displayName?: string | null; submitted: boolean; highlightCount: number };
-type Highlight = { id: string; studentId: string; username: string; displayName?: string | null; page: number; color: HighlightColor; points: Point[]; recordedDate: string };
+type Highlight = { id: string; studentId: string; username: string; displayName?: string | null; page: number; color: HighlightColor; points: Point[]; strokeWidthRatio?: number; recordedDate: string };
 type PdfPageLike = {
   getViewport(args: { scale: number }): { width: number; height: number };
   render(args: { canvasContext: CanvasRenderingContext2D; viewport: unknown; canvas?: HTMLCanvasElement }): { promise: Promise<void>; cancel(): void };
@@ -71,7 +71,7 @@ export default function AdminHighlightViewer({ resourceId, title, students, high
       if (highlight.points.length < 2) continue;
       ctx.save();
       ctx.strokeStyle = strokeColor(highlight.color);
-      ctx.lineWidth = Math.max(12, canvas.width * 0.018);
+      ctx.lineWidth = Math.max(12, canvas.width * (highlight.strokeWidthRatio ?? 0.018));
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();

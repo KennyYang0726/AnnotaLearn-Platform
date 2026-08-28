@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import AdminHighlightViewer from "@/components/admin/AdminHighlightViewer";
 import { formatTaipeiDate } from "@/lib/activity-filter";
 
-type Geometry = { points?: [number, number][] };
+type Geometry = { points?: [number, number][]; strokeWidthRatio?: number };
 
 export default async function HighlightResourceDetailPage({ params }: { params: Promise<{ courseId: string; resourceId: string }> }) {
   const { courseId, resourceId } = await params;
@@ -50,6 +50,7 @@ export default async function HighlightResourceDetailPage({ params }: { params: 
       page: highlight.page,
       color: highlight.color === "RED" ? "RED" as const : "YELLOW" as const,
       points: Array.isArray(geometry.points) ? geometry.points : [],
+      strokeWidthRatio: typeof geometry.strokeWidthRatio === "number" ? geometry.strokeWidthRatio : undefined,
       recordedDate: formatTaipeiDate(highlight.recordedAt),
     };
   })).filter((highlight) => highlight.points.length >= 2);

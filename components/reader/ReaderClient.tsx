@@ -14,13 +14,14 @@ const READER_IDLE_TIMEOUT_MS = 5 * 60_000;
 type Point = [number, number];
 
 type Note = { id: string; page: number; type: NoteType; content: string; recordedAt: string };
-type Highlight = { id: string; page: number; type: HighlightType; color: HighlightColor; extractedText?: string | null; points: Point[]; recordedAt: string };
-type TextBox = { text: string; x: number; y: number; width: number; height: number };
+type Highlight = { id: string; page: number; type: HighlightType; color: HighlightColor; extractedText?: string | null; points: Point[]; strokeWidthRatio?: number; recordedAt: string };
+type TextCharacter = { value: string; x: number; y: number; width: number; height: number; charIndex: number };
+type TextBox = { text: string; chars: TextCharacter[] };
 
 type PdfPageLike = {
   getViewport(args: { scale: number }): { width: number; height: number; scale: number; transform: number[] };
   render(args: { canvasContext: CanvasRenderingContext2D; viewport: unknown; canvas?: HTMLCanvasElement }): { promise: Promise<void>; cancel(): void };
-  getTextContent(): Promise<{ items: Array<Record<string, unknown>> }>;
+  getTextContent(): Promise<{ items: Array<Record<string, unknown>>; styles?: Record<string, { fontFamily?: string }> }>;
 };
 type PdfDocumentLike = { numPages: number; getPage(page: number): Promise<PdfPageLike> };
 type PdfLoadingTaskLike = { promise: Promise<PdfDocumentLike>; destroy(): Promise<void> };
@@ -28,6 +29,7 @@ type PdfLoadingTaskLike = { promise: Promise<PdfDocumentLike>; destroy(): Promis
 type Draft = {
   currentPage: number;
   splitPercent?: number;
+  brushSize?: number;
   notes: Note[];
   highlights: Highlight[];
   updatedAt?: string;
@@ -46,6 +48,118 @@ function matrixMultiply(a: number[], b: number[]) {
 
 function strokeColor(color: HighlightColor) {
   return color === "RED" ? "rgba(239,68,68,0.42)" : "rgba(250,204,21,0.48)";
+}
+
+const LEGACY_STROKE_WIDTH_RATIO = 0.018;
+const BRUSH_SIZE_RATIOS = [0.012, 0.016, 0.020, 0.024, 0.030] as const;
+const BRUSH_SIZE_LABELS = ["極細", "細", "中", "粗", "特粗"] as const;
+const DEFAULT_BRUSH_SIZE = 4;
+
+function strokeWidthForCanvas(canvasWidth: number, ratio: number) {
+  return Math.max(12, canvasWidth * ratio);
+}
+
+function segmentIntersectsRect(x1: number, y1: number, x2: number, y2: number, left: number, top: number, right: number, bottom: number) {
+  if ((x1 >= left && x1 <= right && y1 >= top && y1 <= bottom) || (x2 >= left && x2 <= right && y2 >= top && y2 <= bottom)) return true;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  let t0 = 0;
+  let t1 = 1;
+  const clip = (p: number, q: number) => {
+    if (p === 0) return q >= 0;
+    const r = q / p;
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+    return true;
+  };
+  return clip(-dx, x1 - left) && clip(dx, right - x1) && clip(-dy, y1 - top) && clip(dy, bottom - y1) && t0 <= t1;
+}
+
+function strokeTouchesCharacter(points: Point[], character: TextCharacter, radius: number) {
+  const left = character.x - radius;
+  const top = character.y - radius;
+  const right = character.x + character.width + radius;
+  const bottom = character.y + character.height + radius;
+  for (let index = 1; index < points.length; index++) {
+    if (segmentIntersectsRect(points[index - 1][0], points[index - 1][1], points[index][0], points[index][1], left, top, right, bottom)) return true;
+  }
+  return false;
+}
+
+function buildCharacterBoxes(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, fontHeight: number, baselineX: number, baselineY: number, verticalX: number, verticalY: number, fontFamily?: string, rtl = false): TextCharacter[] {
+  const chars = Array.from(text);
+  if (!chars.length) return [];
+  ctx.save();
+  ctx.font = `${Math.max(1, fontHeight)}px ${fontFamily || "sans-serif"}`;
+  const weights = chars.map((char) => Math.max(0.1, ctx.measureText(char).width || (char.trim() ? 1 : 0.5)));
+  ctx.restore();
+  const totalWeight = weights.reduce((sum, value) => sum + value, 0) || chars.length;
+  let cursor = rtl ? width : 0;
+  return chars.map((value, charIndex) => {
+    const charWidth = width * (weights[charIndex] / totalWeight);
+    const start = rtl ? cursor - charWidth : cursor;
+    cursor += rtl ? -charWidth : charWidth;
+    const baseStartX = x + baselineX * start;
+    const baseStartY = y + baselineY * start;
+    const baseEndX = x + baselineX * (start + charWidth);
+    const baseEndY = y + baselineY * (start + charWidth);
+    const topStartX = baseStartX + verticalX * fontHeight;
+    const topStartY = baseStartY + verticalY * fontHeight;
+    const topEndX = baseEndX + verticalX * fontHeight;
+    const topEndY = baseEndY + verticalY * fontHeight;
+    const minX = Math.min(baseStartX, baseEndX, topStartX, topEndX);
+    const maxX = Math.max(baseStartX, baseEndX, topStartX, topEndX);
+    const minY = Math.min(baseStartY, baseEndY, topStartY, topEndY);
+    const maxY = Math.max(baseStartY, baseEndY, topStartY, topEndY);
+    return { value, x: minX, y: minY, width: Math.max(1, maxX - minX), height: Math.max(1, maxY - minY), charIndex };
+  });
+}
+
+function extractTextFromStroke(textBoxes: TextBox[], normalizedPoints: Point[], canvasWidth: number, canvasHeight: number, strokeWidthRatio: number) {
+  const points = normalizedPoints.map(([x, y]) => [x * canvasWidth, y * canvasHeight] as Point);
+  if (points.length < 2) return "";
+  const strokeRadius = strokeWidthForCanvas(canvasWidth, strokeWidthRatio) / 2;
+  // 文字擷取以筆跡中心線為主，僅保留少量容錯，不直接用整個視覺筆寬去外擴。
+  // 這可避免粗螢光筆在字元邊界因圓頭而把前後相鄰字也誤判為已畫記。
+  const hitTolerance = Math.min(strokeRadius, Math.max(0.75, canvasWidth * 0.001));
+  const minX = Math.min(...points.map((point) => point[0])) - hitTolerance;
+  const maxX = Math.max(...points.map((point) => point[0])) + hitTolerance;
+  const minY = Math.min(...points.map((point) => point[1])) - hitTolerance;
+  const maxY = Math.max(...points.map((point) => point[1])) + hitTolerance;
+  const fragments: string[] = [];
+
+  for (const box of textBoxes) {
+    const hitIndexes: number[] = [];
+    for (let index = 0; index < box.chars.length; index++) {
+      const character = box.chars[index];
+      if (character.x > maxX || character.x + character.width < minX || character.y > maxY || character.y + character.height < minY) continue;
+      if (strokeTouchesCharacter(points, character, hitTolerance)) hitIndexes.push(index);
+    }
+    if (!hitIndexes.length) continue;
+
+    let runStart = hitIndexes[0];
+    let runEnd = hitIndexes[0];
+    const flush = () => {
+      const fragment = box.chars.slice(runStart, runEnd + 1).map((character) => character.value).join("").trim();
+      if (fragment) fragments.push(fragment);
+    };
+    for (let index = 1; index < hitIndexes.length; index++) {
+      if (hitIndexes[index] === runEnd + 1) runEnd = hitIndexes[index];
+      else {
+        flush();
+        runStart = hitIndexes[index];
+        runEnd = hitIndexes[index];
+      }
+    }
+    flush();
+  }
+
+  return fragments.join(" ").replace(/\s+/g, " ").trim();
 }
 
 function validDraft(value: unknown): value is Draft {
@@ -76,6 +190,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
   const [pageGateMessage, setPageGateMessage] = useState("");
   const [trackingNotice, setTrackingNotice] = useState("");
   const [tool, setTool] = useState<HighlightColor | null>(null);
+  const [brushSize, setBrushSize] = useState(DEFAULT_BRUSH_SIZE);
   const [splitPercent, setSplitPercent] = useState(70);
   const [layoutMode, setLayoutMode] = useState<"SPLIT" | "PDF" | "NOTES">("SPLIT");
   const [noteTab, setNoteTab] = useState<"CURRENT" | "ALL">("CURRENT");
@@ -128,6 +243,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
             setNotes(draft.notes.map((note) => ({ ...note, recordedAt: note.recordedAt || fallbackRecordedAt })));
             setHighlights(draft.highlights.map((highlight) => ({ ...highlight, recordedAt: highlight.recordedAt || fallbackRecordedAt })));
             if (typeof draft.splitPercent === "number") setSplitPercent(draft.splitPercent);
+            if (typeof draft.brushSize === "number" && Number.isInteger(draft.brushSize) && draft.brushSize >= 1 && draft.brushSize <= BRUSH_SIZE_RATIOS.length) setBrushSize(draft.brushSize);
             setRestored(true);
           }
         }
@@ -143,10 +259,10 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
   useEffect(() => {
     if (!ready) return;
     const timer = window.setTimeout(() => {
-      localStorage.setItem(draftKey, JSON.stringify({ currentPage, splitPercent, notes, highlights, updatedAt: new Date().toISOString() }));
+      localStorage.setItem(draftKey, JSON.stringify({ currentPage, splitPercent, brushSize, notes, highlights, updatedAt: new Date().toISOString() }));
     }, 700);
     return () => window.clearTimeout(timer);
-  }, [currentPage, draftKey, highlights, notes, ready, splitPercent]);
+  }, [brushSize, currentPage, draftKey, highlights, notes, ready, splitPercent]);
 
   useEffect(() => {
     let cancelled = false;
@@ -310,17 +426,17 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
     };
   }, [currentPage, endVisit, startVisit]);
 
-  const drawHighlights = useCallback((active?: { color: HighlightColor; points: Point[] }) => {
+  const drawHighlights = useCallback((active?: { color: HighlightColor; points: Point[]; strokeWidthRatio: number }) => {
     const canvas = annotationCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const draw = (color: HighlightColor, points: Point[]) => {
+    const draw = (color: HighlightColor, points: Point[], strokeWidthRatio = LEGACY_STROKE_WIDTH_RATIO) => {
       if (points.length < 2) return;
       ctx.save();
       ctx.strokeStyle = strokeColor(color);
-      ctx.lineWidth = Math.max(12, canvas.width * 0.018);
+      ctx.lineWidth = strokeWidthForCanvas(canvas.width, strokeWidthRatio);
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
       ctx.beginPath();
@@ -329,8 +445,8 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       ctx.stroke();
       ctx.restore();
     };
-    highlights.filter((h) => h.page === currentPage).forEach((h) => draw(h.color, h.points));
-    if (active) draw(active.color, active.points);
+    highlights.filter((h) => h.page === currentPage).forEach((h) => draw(h.color, h.points, h.strokeWidthRatio));
+    if (active) draw(active.color, active.points, active.strokeWidthRatio);
   }, [currentPage, highlights]);
 
   useEffect(() => { drawHighlights(); }, [drawHighlights, layoutMode]);
@@ -360,12 +476,23 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
         const content = await page.getTextContent();
         const boxes: TextBox[] = [];
         for (const raw of content.items) {
-          if (typeof raw.str !== "string" || !Array.isArray(raw.transform)) continue;
+          if (typeof raw.str !== "string" || !Array.isArray(raw.transform) || !raw.str.length) continue;
           const transform = raw.transform as number[];
           const tx = matrixMultiply(viewport.transform, transform);
           const fontHeight = Math.max(1, Math.hypot(tx[2], tx[3]));
           const width = Math.max(1, Number(raw.width || 0) * viewport.scale);
-          boxes.push({ text: raw.str, x: tx[4], y: tx[5] - fontHeight, width, height: fontHeight * 1.25 });
+          const baselineLength = Math.hypot(tx[0], tx[1]) || 1;
+          const verticalLength = Math.hypot(tx[2], tx[3]) || 1;
+          const baselineX = tx[0] / baselineLength;
+          const baselineY = tx[1] / baselineLength;
+          const verticalX = tx[2] / verticalLength;
+          const verticalY = tx[3] / verticalLength;
+          const fontName = typeof raw.fontName === "string" ? raw.fontName : "";
+          const fontFamily = fontName ? content.styles?.[fontName]?.fontFamily : undefined;
+          boxes.push({
+            text: raw.str,
+            chars: buildCharacterBoxes(ctx, raw.str, tx[4], tx[5], width, fontHeight * 1.25, baselineX, baselineY, verticalX, verticalY, fontFamily, raw.dir === "rtl"),
+          });
         }
         if (!cancelled) {
           textBoxesRef.current = boxes;
@@ -400,7 +527,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
     const distance = Math.hypot(next[0] - last[0], next[1] - last[1]);
     if (distance < 0.0015) return;
     activeStrokeRef.current.push(next);
-    drawHighlights({ color: tool, points: activeStrokeRef.current });
+    drawHighlights({ color: tool, points: activeStrokeRef.current, strokeWidthRatio: BRUSH_SIZE_RATIOS[brushSize - 1] });
   }
 
   function finishStroke(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -413,18 +540,8 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       return;
     }
     const canvas = annotationCanvasRef.current!;
-    const px = points.map(([x, y]) => [x * canvas.width, y * canvas.height] as Point);
-    const minX = Math.min(...px.map((p) => p[0]));
-    const maxX = Math.max(...px.map((p) => p[0]));
-    const minY = Math.min(...px.map((p) => p[1]));
-    const maxY = Math.max(...px.map((p) => p[1]));
-    const text = textBoxesRef.current
-      .filter((b) => b.x <= maxX && b.x + b.width >= minX && b.y <= maxY && b.y + b.height >= minY)
-      .map((b) => b.text.trim())
-      .filter(Boolean)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
+    const strokeWidthRatio = BRUSH_SIZE_RATIOS[brushSize - 1];
+    const text = extractTextFromStroke(textBoxesRef.current, points, canvas.width, canvas.height, strokeWidthRatio);
     const next: Highlight = {
       id: crypto.randomUUID(),
       page: currentPage,
@@ -432,6 +549,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       color: tool,
       extractedText: text || null,
       points,
+      strokeWidthRatio,
       recordedAt: new Date().toISOString(),
     };
     setHighlights((prev) => [...prev, next]);
@@ -546,6 +664,11 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
         <div className="reader-tools">
           <button className={`btn ${tool === "RED" ? "tool-active-red" : ""}`} onClick={() => setTool(tool === "RED" ? null : "RED")}>紅色螢光筆：重點</button>
           <button className={`btn ${tool === "YELLOW" ? "tool-active-yellow" : ""}`} onClick={() => setTool(tool === "YELLOW" ? null : "YELLOW")}>黃色螢光筆：疑問</button>
+          <label className="reader-brush-size" title="調整之後新增劃記的筆跡粗細">
+            <span>畫筆粗細</span>
+            <input aria-label="畫筆粗細" type="range" min={1} max={BRUSH_SIZE_RATIOS.length} step={1} value={brushSize} onChange={(event) => setBrushSize(Number(event.target.value))} />
+            <strong>{BRUSH_SIZE_LABELS[brushSize - 1]}</strong>
+          </label>
           <button className="btn" onClick={undoHighlight}>復原本頁最後劃記</button>
           <button className="btn btn-danger" onClick={clearPageHighlights}>清除本頁劃記</button>
           <span className="reader-tool-divider" aria-hidden="true" />

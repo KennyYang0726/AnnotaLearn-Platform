@@ -87,6 +87,9 @@ th { color: var(--muted); font-size: 13px; }
 .submit-bar { padding: 12px 14px; border-top: 1px solid var(--border); }
 .tool-active-red { background: #fee2e2; color: #991b1b; }
 .tool-active-yellow { background: #fef3c7; color: #854d0e; }
+.reader-brush-size { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: #fff; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.reader-brush-size input[type="range"] { width: 96px; accent-color: #52617a; }
+.reader-brush-size strong { min-width: 28px; color: var(--text); font-size: 12px; }
 .restore-banner { padding: 8px 12px; font-size: 13px; background: #edf4ff; color: #2445af; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(17,24,39,.5); display: grid; place-items: center; padding: 18px; }
 .modal { width: min(440px, 100%); padding: 28px; text-align: center; }

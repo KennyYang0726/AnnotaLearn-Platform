@@ -28,9 +28,9 @@ export default function CourseForm({ semesters }: { semesters: { id: string; cod
 
   return <form className="stack" onSubmit={submit}>
     <label>學期<select value={semesterId} onChange={(e) => setSemesterId(e.target.value)} required>{semesters.map((s) => <option key={s.id} value={s.id}>{s.code}</option>)}</select></label>
-    <label>課程名稱<input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：國中力學概念" required /></label>
-    <label>課程起始時間<input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required /></label>
-    <label>課程結束時間<input type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} required /></label>
+    <label>課程名稱<input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：行動裝置程式設計" required /></label>
+    <label>課程起始時間（學習活動統計自此開始）<input type="datetime-local" value={startAt} onChange={(e) => setStartAt(e.target.value)} required /></label>
+    <label>課程結束時間（學習活動統計至此截止）<input type="datetime-local" value={endAt} onChange={(e) => setEndAt(e.target.value)} required /></label>
     <div className="subtle" style={{ fontSize: 13 }}>課程期間以台灣時間（UTC+8）判定，學生的學習活動天數只會在此期間內累計。</div>
     {error && <div className="error">{error}</div>}
     <button className="btn btn-primary" disabled={!semesters.length}>建立課程</button>

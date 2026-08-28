@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const ids = Array.from(new Set(rows.map((row) => normalizeStudentId(row.studentId)).filter(Boolean)));
     const existing = ids.length
       ? await prisma.user.findMany({
-          where: { OR: ids.map((username) => ({ username: { equals: username, mode: "insensitive" as const } })) },
+          where: { username: { in: ids } },
           select: { username: true, role: true },
         })
       : [];
