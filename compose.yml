@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: annotalearn-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-annotalearn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-annotalearn}
+      POSTGRES_DB: ${POSTGRES_DB:-annotalearn}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - annotalearn_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-annotalearn} -d ${POSTGRES_DB:-annotalearn}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: annotalearn-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${POSTGRES_USER:-annotalearn}:${POSTGRES_PASSWORD:-annotalearn}@postgres:5432/${POSTGRES_DB:-annotalearn}?schema=public
+      SESSION_SECRET: ${SESSION_SECRET}
+      APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Taipei}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      LOCAL_STORAGE_DIR: /app/storage/uploads
+    volumes:
+      - ./storage/uploads:/app/storage/uploads
+    ports:
+      - "127.0.0.1:${APP_PORT:-3000}:3000"
+
+volumes:
+  annotalearn_pgdata:
+    name: annotalearn_pgdata

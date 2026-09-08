@@ -1,0 +1,55 @@
+FROM node:24-bookworm-slim AS base
+
+WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
+
+# Prisma on Debian slim requires OpenSSL.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Dependencies
+FROM base AS deps
+
+WORKDIR /app
+
+# prisma generate loads prisma.config.ts during npm ci/postinstall.
+# A syntactically valid build-only URL is enough; no database connection is made here.
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
+
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+
+RUN npm ci
+
+# Build
+FROM base AS builder
+
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+ENV DATABASE_URL="postgresql://build:build@127.0.0.1:5432/build"
+ENV SESSION_SECRET="build-only-secret-123456789012345678901234567890"
+ENV APP_TIMEZONE="Asia/Taipei"
+
+RUN npm run build
+
+# Runtime
+FROM base AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
+
+COPY --from=builder /app ./
+
+EXPOSE 3000
+
+CMD ["npm", "run", "start", "--", "-H", "0.0.0.0", "-p", "3000"]

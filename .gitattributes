@@ -1,0 +1,13 @@
+# Keep repository text files consistent across Windows and Linux.
+* text=auto eol=lf
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.xls binary
+*.xlsx binary

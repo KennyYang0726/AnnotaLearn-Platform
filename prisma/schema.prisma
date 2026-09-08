@@ -1,0 +1,254 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  TA
+  STUDENT
+}
+
+enum NoteType {
+  KEY_POINT
+  QUESTION
+}
+
+enum HighlightType {
+  IMPORTANT
+  QUESTION
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+}
+
+enum PageUnderstanding {
+  UNDERSTOOD
+  NOT_UNDERSTOOD
+}
+
+model User {
+  id                 String              @id @default(cuid())
+  username           String              @unique
+  displayName        String?
+  departmentGrade    String?
+  schoolEmail        String?
+  externalEmail      String?
+  rosterNote         String?
+  passwordHash       String
+  role               Role                @default(STUDENT)
+  mustChangePassword Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  enrollments        Enrollment[]
+  submissions              ReadingSubmission[]
+  pageUnderstandingStates  PageUnderstandingState[]
+  pageUnderstandingEvents  PageUnderstandingEvent[]
+  pageVisits               PageVisit[]
+  courseDailyActivities    CourseDailyActivity[]
+  staffCourses             CourseStaff[]
+  uploadedAssets           Asset[]                  @relation("AssetUploader")
+}
+
+model Semester {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  createdAt DateTime @default(now())
+  courses   Course[]
+}
+
+model Course {
+  id          String           @id @default(cuid())
+  courseCode  String           @unique
+  name        String
+  semesterId  String
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  startAt     DateTime
+  endAt       DateTime
+  allowMaterialDownload Boolean @default(false)
+  semester    Semester         @relation(fields: [semesterId], references: [id], onDelete: Restrict)
+  enrollments Enrollment[]
+  resources   CourseResource[]
+  dailyActivities CourseDailyActivity[]
+  staff           CourseStaff[]
+}
+
+model CourseStaff {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+}
+
+model Enrollment {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+}
+
+model Asset {
+  id              String           @id @default(cuid())
+  originalName    String
+  displayName     String
+  storageProvider String
+  storageKey      String           @unique
+  storageUrl      String?
+  fileSize        Int
+  pageCount       Int?
+  mimeType        String           @default("application/pdf")
+  createdAt       DateTime         @default(now())
+  createdById     String?
+  createdBy       User?            @relation("AssetUploader", fields: [createdById], references: [id], onDelete: SetNull)
+  resources       CourseResource[]
+
+  @@index([createdById])
+}
+
+model CourseResource {
+  id          String              @id @default(cuid())
+  courseId    String
+  assetId     String
+  title       String
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  asset       Asset               @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  submissions             ReadingSubmission[]
+  pageUnderstandingStates PageUnderstandingState[]
+  pageUnderstandingEvents PageUnderstandingEvent[]
+  pageVisits              PageVisit[]
+
+  @@unique([courseId, assetId])
+  @@index([courseId, sortOrder])
+}
+
+model ReadingSubmission {
+  id          String           @id @default(cuid())
+  userId      String
+  resourceId  String
+  status      SubmissionStatus @default(SUBMITTED)
+  lastPage    Int
+  submittedAt DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource    CourseResource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  highlights  Highlight[]
+
+  @@unique([userId, resourceId])
+  @@index([resourceId])
+}
+
+model Note {
+  id           String            @id @default(cuid())
+  submissionId String
+  clientId     String
+  page         Int
+  type         NoteType
+  content      String
+  createdAt    DateTime          @default(now())
+  recordedAt   DateTime          @default(now())
+  submission   ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, page])
+  @@index([submissionId, recordedAt])
+}
+
+model Highlight {
+  id            String            @id @default(cuid())
+  submissionId  String
+  clientId      String
+  page          Int
+  type          HighlightType
+  color         String
+  extractedText String?
+  geometry      Json
+  createdAt     DateTime          @default(now())
+  recordedAt    DateTime          @default(now())
+  submission    ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId, page])
+  @@index([submissionId, recordedAt])
+}
+
+
+model PageUnderstandingState {
+  id         String            @id @default(cuid())
+  userId     String
+  resourceId String
+  page       Int
+  status     PageUnderstanding
+  selectedAt DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   CourseResource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resourceId, page])
+  @@index([resourceId, page, status])
+  @@index([userId, resourceId])
+}
+
+model PageUnderstandingEvent {
+  id         String            @id @default(cuid())
+  userId     String
+  resourceId String
+  page       Int
+  status     PageUnderstanding
+  recordedAt DateTime          @default(now())
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource   CourseResource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, page, status, recordedAt])
+  @@index([userId, resourceId, recordedAt])
+}
+
+model PageVisit {
+  id              String         @id @default(cuid())
+  clientVisitId   String         @unique
+  readerSessionId String
+  userId          String
+  resourceId      String
+  page            Int
+  enteredAt       DateTime       @default(now())
+  lastSeenAt      DateTime       @default(now())
+  leftAt          DateTime?
+  durationSeconds Int            @default(0)
+  endReason       String?
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource        CourseResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, userId, page, enteredAt])
+  @@index([userId, resourceId, readerSessionId, leftAt])
+}
+
+model CourseDailyActivity {
+  id              String   @id @default(cuid())
+  courseId        String
+  userId          String
+  activityDate    DateTime @db.Date
+  firstActivityAt DateTime @default(now())
+  lastActivityAt  DateTime @default(now())
+  course          Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId, activityDate])
+  @@index([courseId, activityDate])
+  @@index([userId, courseId, activityDate])
+}
