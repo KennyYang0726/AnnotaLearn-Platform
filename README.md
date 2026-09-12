@@ -82,7 +82,7 @@ newgrp docker
 ### 1. 取得專案
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/KennyYang0726/AnnotaLearn-Platform.git
 cd AnnotaLearn-Platform
 ```
 

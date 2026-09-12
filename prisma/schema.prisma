@@ -24,7 +24,24 @@ enum HighlightType {
 }
 
 enum SubmissionStatus {
+  DRAFT
   SUBMITTED
+}
+
+enum AnnotationEntityType {
+  NOTE
+  HIGHLIGHT
+}
+
+enum AnnotationAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum AnnotationSource {
+  AUTO_SYNC
+  SUBMIT_SYNC
 }
 
 enum PageUnderstanding {
@@ -51,6 +68,8 @@ model User {
   pageUnderstandingEvents  PageUnderstandingEvent[]
   pageVisits               PageVisit[]
   courseDailyActivities    CourseDailyActivity[]
+  resourceDailyActivities  ResourceDailyActivity[]
+  annotationEvents         AnnotationEvent[]
   staffCourses             CourseStaff[]
   uploadedAssets           Asset[]                  @relation("AssetUploader")
 }
@@ -75,8 +94,23 @@ model Course {
   semester    Semester         @relation(fields: [semesterId], references: [id], onDelete: Restrict)
   enrollments Enrollment[]
   resources   CourseResource[]
+  sections    CourseSection[]
   dailyActivities CourseDailyActivity[]
   staff           CourseStaff[]
+}
+
+model CourseSection {
+  id          String           @id @default(cuid())
+  courseId    String
+  title       String
+  description String?
+  sortOrder   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  course      Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  resources   CourseResource[]
+
+  @@index([courseId, sortOrder])
 }
 
 model CourseStaff {
@@ -127,16 +161,24 @@ model CourseResource {
   assetId     String
   title       String
   sortOrder   Int                 @default(0)
+  sectionId   String?
+  readingTaskEnabled Boolean      @default(false)
+  availableFrom      DateTime?
+  dueAt              DateTime?
   createdAt   DateTime            @default(now())
   course      Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  section     CourseSection?       @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   asset       Asset               @relation(fields: [assetId], references: [id], onDelete: Restrict)
   submissions             ReadingSubmission[]
   pageUnderstandingStates PageUnderstandingState[]
   pageUnderstandingEvents PageUnderstandingEvent[]
   pageVisits              PageVisit[]
+  dailyActivities         ResourceDailyActivity[]
+  annotationEvents        AnnotationEvent[]
 
   @@unique([courseId, assetId])
   @@index([courseId, sortOrder])
+  @@index([sectionId, sortOrder])
 }
 
 model ReadingSubmission {
@@ -145,8 +187,11 @@ model ReadingSubmission {
   resourceId  String
   status      SubmissionStatus @default(SUBMITTED)
   lastPage    Int
-  submittedAt DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  submittedAt      DateTime?
+  firstSubmittedAt DateTime?
+  lastSubmittedAt  DateTime?
+  submissionCount  Int              @default(0)
+  updatedAt        DateTime          @updatedAt
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   resource    CourseResource   @relation(fields: [resourceId], references: [id], onDelete: Cascade)
   notes       Note[]
@@ -167,6 +212,7 @@ model Note {
   recordedAt   DateTime          @default(now())
   submission   ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
+  @@unique([submissionId, clientId])
   @@index([submissionId, page])
   @@index([submissionId, recordedAt])
 }
@@ -184,10 +230,33 @@ model Highlight {
   recordedAt    DateTime          @default(now())
   submission    ReadingSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
 
+  @@unique([submissionId, clientId])
   @@index([submissionId, page])
   @@index([submissionId, recordedAt])
 }
 
+model AnnotationEvent {
+  id            String               @id @default(cuid())
+  userId        String
+  resourceId    String
+  clientId      String
+  entityType    AnnotationEntityType
+  action        AnnotationAction
+  source        AnnotationSource
+  page          Int
+  noteType      NoteType?
+  highlightType HighlightType?
+  color         String?
+  content       String?
+  extractedText String?
+  geometry      Json?
+  recordedAt    DateTime             @default(now())
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resource      CourseResource       @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@index([resourceId, userId, recordedAt])
+  @@index([resourceId, page, entityType, recordedAt])
+}
 
 model PageUnderstandingState {
   id         String            @id @default(cuid())
@@ -251,4 +320,19 @@ model CourseDailyActivity {
   @@unique([courseId, userId, activityDate])
   @@index([courseId, activityDate])
   @@index([userId, courseId, activityDate])
+}
+
+model ResourceDailyActivity {
+  id              String         @id @default(cuid())
+  resourceId      String
+  userId          String
+  activityDate    DateTime       @db.Date
+  firstActivityAt DateTime       @default(now())
+  lastActivityAt  DateTime       @default(now())
+  resource        CourseResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([resourceId, userId, activityDate])
+  @@index([resourceId, activityDate])
+  @@index([userId, resourceId, activityDate])
 }

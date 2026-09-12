@@ -10,26 +10,22 @@ export function ReaderMobileTopbar({
   title,
   notesCount,
   toolsOpen,
-  moreOpen,
   allowDownload,
   downloadHref,
   submitting,
   onOpenNotes,
   onToggleTools,
-  onToggleMore,
   onSubmit,
 }: {
   courseHref: string;
   title: string;
   notesCount: number;
   toolsOpen: boolean;
-  moreOpen: boolean;
   allowDownload: boolean;
   downloadHref: string;
   submitting: boolean;
   onOpenNotes(): void;
   onToggleTools(): void;
-  onToggleMore(): void;
   onSubmit(): void;
 }) {
   return <header className="reader-mobile-topbar">
@@ -37,13 +33,13 @@ export function ReaderMobileTopbar({
     <strong className="reader-mobile-title" title={title}>{title}</strong>
     <button className="reader-mobile-text-button" type="button" onClick={onOpenNotes}>筆記<span className="reader-mobile-count">{notesCount}</span></button>
     <button className={`reader-mobile-text-button ${toolsOpen ? "is-active" : ""}`} type="button" onClick={onToggleTools}>{toolsOpen ? "收合" : "工具"}</button>
-    <div className="reader-mobile-more-wrap">
-      <button className="reader-mobile-icon-button" type="button" aria-label="更多操作" aria-expanded={moreOpen} onClick={onToggleMore}>⋯</button>
-      {moreOpen && <div className="reader-mobile-more-menu">
-        {allowDownload && <a href={downloadHref} onClick={onToggleMore}>下載教材</a>}
-        <button type="button" disabled={submitting} onClick={onSubmit}>{submitting ? "繳交中…" : "繳交教材筆記"}</button>
-      </div>}
-    </div>
+    {allowDownload && <a className="reader-mobile-download-button" href={downloadHref} aria-label="下載教材" title="下載教材">
+      <svg className="reader-mobile-download-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v3h14v-3" />
+      </svg>
+      <span className="reader-mobile-download-label">下載教材</span>
+    </a>}
+    <button className="reader-mobile-submit-button" type="button" disabled={submitting} onClick={onSubmit}>{submitting ? "繳交中…" : "繳交作業"}</button>
   </header>;
 }
 

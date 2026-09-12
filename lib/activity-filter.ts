@@ -1,6 +1,6 @@
 import { appDateRangeEnd, appDateRangeStart, formatAppDate, formatAppDateTime } from "@/lib/app-timezone";
 
-export type ActivityRecordType = "ALL" | "NOTE" | "HIGHLIGHT" | "UNDERSTANDING" | "VISIT" | "DAILY_ACTIVITY";
+export type ActivityRecordType = "ALL" | "NOTE" | "HIGHLIGHT" | "UNDERSTANDING" | "VISIT" | "DAILY_ACTIVITY" | "RESOURCE_DAILY_ACTIVITY" | "ANNOTATION_EVENT";
 export type ActivityNoteType = "ALL" | "KEY_POINT" | "QUESTION";
 export type ActivityHighlightColor = "ALL" | "RED" | "YELLOW";
 export type ActivityUnderstanding = "ALL" | "UNDERSTOOD" | "NOT_UNDERSTOOD" | "UNSET";
@@ -48,7 +48,9 @@ export function parseActivityFilters(source: SearchSource): ActivityFilters {
       recordTypeRaw === "HIGHLIGHT" ||
       recordTypeRaw === "UNDERSTANDING" ||
       recordTypeRaw === "VISIT" ||
-      recordTypeRaw === "DAILY_ACTIVITY"
+      recordTypeRaw === "DAILY_ACTIVITY" ||
+      recordTypeRaw === "RESOURCE_DAILY_ACTIVITY" ||
+      recordTypeRaw === "ANNOTATION_EVENT"
         ? recordTypeRaw
         : "ALL",
     noteType: noteTypeRaw === "KEY_POINT" || noteTypeRaw === "QUESTION" ? noteTypeRaw : "ALL",

@@ -47,7 +47,7 @@ export default async function HighlightResourcesPage({ params }: { params: Promi
                 <div className="resource-filename">{resource.asset.originalName}</div>
                 <div className="resource-meta-row">
                   <span className="resource-meta">頁數<strong>{resource.asset.pageCount ?? "—"}</strong></span>
-                  <span className="resource-meta">已繳交<strong>{resource.submissions.length}</strong></span>
+                  <span className="resource-meta">有教材紀錄<strong>{resource.submissions.length}</strong></span>
                   <span className="resource-meta">劃記<strong>{highlightCount}</strong></span>
                 </div>
               </div>

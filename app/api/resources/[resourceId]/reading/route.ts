@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireApiUser } from "@/lib/auth/api";
 import { getAuthorizedResource } from "@/lib/resource-access";
 import { prisma } from "@/lib/db";
-import { recordCourseDailyActivity } from "@/lib/reading-activity";
+import { recordCourseDailyActivity, recordResourceDailyActivity } from "@/lib/reading-activity";
 
 const enterSchema = z.object({
   action: z.literal("ENTER"),
@@ -154,7 +154,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ res
         lastSeenAt: now,
       },
     });
-    await recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now });
+    await Promise.all([
+      recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+      recordResourceDailyActivity({ resourceId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+    ]);
     return NextResponse.json({ ok: true, visitId: data.clientVisitId });
   }
 
@@ -166,7 +169,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ res
       where: { id: visit.id },
       data: { lastSeenAt: now, durationSeconds: { increment } },
     });
-    await recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now });
+    await Promise.all([
+      recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+      recordResourceDailyActivity({ resourceId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+    ]);
     return NextResponse.json({ ok: true, active: true, durationSeconds: visit.durationSeconds + increment });
   }
 
@@ -178,7 +184,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ res
       where: { id: visit.id },
       data: { lastSeenAt: now, leftAt: now, endReason: data.reason ?? "UNMOUNT", durationSeconds: { increment } },
     });
-    await recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now });
+    await Promise.all([
+      recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+      recordResourceDailyActivity({ resourceId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+    ]);
     return NextResponse.json({ ok: true });
   }
 
@@ -187,7 +196,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ res
   });
 
   if (existingState?.status === data.status) {
-    await recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now });
+    await Promise.all([
+      recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+      recordResourceDailyActivity({ resourceId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+    ]);
     return NextResponse.json({ ok: true, changed: false, status: existingState.status, selectedAt: existingState.selectedAt.toISOString() });
   }
 
@@ -200,6 +212,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ res
     await tx.pageUnderstandingEvent.create({ data: { userId: auth.user.id, resourceId, page: data.page, status: data.status, recordedAt: now } });
     return next;
   });
-  await recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now });
+  await Promise.all([
+      recordCourseDailyActivity({ courseId: resource.courseId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+      recordResourceDailyActivity({ resourceId, userId: auth.user.id, courseStartAt: resource.course.startAt, courseEndAt: resource.course.endAt, at: now }),
+    ]);
   return NextResponse.json({ ok: true, changed: true, status: state.status, selectedAt: state.selectedAt.toISOString() });
 }

@@ -5,7 +5,7 @@ export default async function SubmissionsPage() {
   const courses = await prisma.course.findMany({
     include: {
       semester: true,
-      resources: { select: { id: true, _count: { select: { submissions: true } } } },
+      resources: { select: { id: true, _count: { select: { submissions: { where: { status: "SUBMITTED" } } } } } },
       _count: { select: { enrollments: true, resources: true } },
     },
     orderBy: [{ semester: { code: "desc" } }, { name: "asc" }],

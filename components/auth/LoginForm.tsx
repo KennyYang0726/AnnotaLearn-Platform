@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "@/components/auth/PasswordInput";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -39,7 +40,7 @@ export default function LoginForm() {
       </label>
       <label>
         密碼
-        <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
+        <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
         <span className="subtle" style={{ fontSize: 13, fontWeight: 400 }}>初始密碼為學號大寫2遍+!</span>
       </label>
       {error && <div className="error">{error}</div>}

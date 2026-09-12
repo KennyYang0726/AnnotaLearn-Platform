@@ -7,7 +7,7 @@ import ResetStudentPasswordButton from "@/components/admin/ResetStudentPasswordB
 export default async function StudentsPage() {
   const students = await prisma.user.findMany({
     where: { role: "STUDENT" },
-    include: { _count: { select: { enrollments: true, submissions: true } } },
+    include: { _count: { select: { enrollments: true, submissions: { where: { status: "SUBMITTED" } } } } },
     orderBy: { username: "asc" },
   });
 

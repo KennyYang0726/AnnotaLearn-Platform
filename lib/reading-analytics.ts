@@ -4,7 +4,7 @@ export function distinctVisitedPages(visits: Array<{ page: number }>) {
   return [...new Set(visits.map((visit) => visit.page).filter((page) => Number.isInteger(page) && page > 0))].sort((a, b) => a - b);
 }
 
-export function completionPercent(visitedCount: number, pageCount: number | null | undefined) {
+export function browsingProgressPercent(visitedCount: number, pageCount: number | null | undefined) {
   if (!pageCount || pageCount <= 0) return null;
   return Math.min(100, Math.round((visitedCount / pageCount) * 100));
 }

@@ -217,7 +217,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
   const [mobileNotesOpen, setMobileNotesOpen] = useState(false);
   const [mobileFabOpen, setMobileFabOpen] = useState(false);
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [mobileJumpOpen, setMobileJumpOpen] = useState(false);
   const [mobileJumpPage, setMobileJumpPage] = useState("1");
   const [focusNoteId, setFocusNoteId] = useState<string | null>(null);
@@ -236,6 +235,23 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
   const currentUnderstanding = understandingByPage[currentPage];
   const pageNavigationLocked = !currentUnderstanding || understandingSaving;
   const currentPageHighlightCount = useMemo(() => highlights.filter((highlight) => highlight.page === currentPage).length, [currentPage, highlights]);
+
+  const syncAnnotation = useCallback(async (payload: Record<string, unknown>) => {
+    try {
+      const response = await fetch(`/api/resources/${resourceId}/annotations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "註記同步失敗");
+      }
+    } catch {
+      // Browser draft remains the recovery source. Final submit performs a full state sync.
+      setTrackingNotice("部分註記尚未同步至伺服器，內容仍保留在此瀏覽器，繳交時會再次同步。");
+    }
+  }, [resourceId]);
 
   useEffect(() => {
     if (!readerSessionIdRef.current) readerSessionIdRef.current = crypto.randomUUID();
@@ -261,7 +277,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
   useEffect(() => {
     if (isCompactReader) {
       setLayoutMode("PDF");
-      setMobileMoreOpen(false);
       return;
     }
     touchPointersRef.current.clear();
@@ -271,7 +286,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
     setMobileToolsOpen(false);
     setMobileNotesOpen(false);
     setMobileFabOpen(false);
-    setMobileMoreOpen(false);
     setMobileJumpOpen(false);
     setTool(null);
   }, [isCompactReader]);
@@ -772,28 +786,48 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       recordedAt: new Date().toISOString(),
     };
     setHighlights((prev) => [...prev, next]);
+    void syncAnnotation({ action: "HIGHLIGHT_CREATE", highlight: next });
   }
 
   function addNote(type: NoteType) {
     const id = crypto.randomUUID();
+    const next: Note = { id, page: currentPage, type, content: "", recordedAt: new Date().toISOString() };
     setNoteTab("CURRENT");
-    setNotes((prev) => [...prev, { id, page: currentPage, type, content: "", recordedAt: new Date().toISOString() }]);
+    setNotes((prev) => [...prev, next]);
+    void syncAnnotation({ action: "NOTE_UPSERT", note: next });
     setFocusNoteId(id);
     return id;
   }
   function addMobileNote(type: NoteType) {
     addNote(type);
     setMobileFabOpen(false);
-    setMobileMoreOpen(false);
     setMobileNotesOpen(true);
   }
   function updateNote(id: string, content: string) { setNotes((prev) => prev.map((n) => n.id === id ? { ...n, content } : n)); }
-  function deleteNote(id: string) { setNotes((prev) => prev.filter((n) => n.id !== id)); }
-  function undoHighlight() { setHighlights((prev) => { const index = [...prev].map((h) => h.page).lastIndexOf(currentPage); return index < 0 ? prev : prev.filter((_, i) => i !== index); }); }
-  function clearPageHighlights() { if (window.confirm(`確定清除第${currentPage}頁的所有劃記？`)) setHighlights((prev) => prev.filter((h) => h.page !== currentPage)); }
+  function syncNote(note: Note) { void syncAnnotation({ action: "NOTE_UPSERT", note }); }
+  function deleteNote(id: string) {
+    setNotes((prev) => prev.filter((n) => n.id !== id));
+    void syncAnnotation({ action: "NOTE_DELETE", id });
+  }
+  function undoHighlight() {
+    setHighlights((prev) => {
+      const index = [...prev].map((h) => h.page).lastIndexOf(currentPage);
+      if (index < 0) return prev;
+      const removed = prev[index];
+      void syncAnnotation({ action: "HIGHLIGHT_DELETE", id: removed.id });
+      return prev.filter((_, i) => i !== index);
+    });
+  }
+  function clearPageHighlights() {
+    if (!window.confirm(`確定清除第${currentPage}頁的所有劃記？`)) return;
+    setHighlights((prev) => {
+      const removed = prev.filter((h) => h.page === currentPage);
+      for (const highlight of removed) void syncAnnotation({ action: "HIGHLIGHT_DELETE", id: highlight.id });
+      return prev.filter((h) => h.page !== currentPage);
+    });
+  }
 
   function toggleMobileTools() {
-    setMobileMoreOpen(false);
     setMobileFabOpen(false);
     if (tool) {
       activeStrokeRef.current = null;
@@ -809,7 +843,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
   function selectMobileTool(color: HighlightColor) {
     setMobileToolsOpen(true);
     setMobileFabOpen(false);
-    setMobileMoreOpen(false);
     setMobilePanMode(false);
     setTool((active) => active === color ? null : color);
   }
@@ -832,9 +865,8 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
 
   function handlePdfStageTap() {
     if (!isCompactReader || tool || Date.now() < suppressPdfTapUntilRef.current) return;
-    if (mobileFabOpen || mobileMoreOpen) {
+    if (mobileFabOpen) {
       setMobileFabOpen(false);
-      setMobileMoreOpen(false);
       return;
     }
     setMobileToolsOpen((open) => !open);
@@ -852,7 +884,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
     setMobileJumpPage(String(currentPage));
     setMobileJumpOpen(true);
     setMobileFabOpen(false);
-    setMobileMoreOpen(false);
   }
 
   function submitMobileJump(event: React.FormEvent<HTMLFormElement>) {
@@ -899,7 +930,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       setTool(null);
       setMobileToolsOpen(false);
       setMobileFabOpen(false);
-      setMobileMoreOpen(false);
     }
     pdfStageRef.current?.scrollTo({ top: 0, left: 0 });
     setCurrentPage(page);
@@ -948,7 +978,6 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       if (!response.ok) throw new Error(data.error || "繳交失敗");
       localStorage.removeItem(draftKey);
       setRestored(false);
-      setMobileMoreOpen(false);
       setMobileNotesOpen(false);
       setSuccessAt(data.submittedAt || new Date().toISOString());
     } catch (e) {
@@ -976,14 +1005,12 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
       title={title}
       notesCount={notes.length}
       toolsOpen={mobileToolsOpen || Boolean(tool)}
-      moreOpen={mobileMoreOpen}
       allowDownload={allowDownload}
       downloadHref={`/api/resources/${resourceId}/download`}
       submitting={submitting}
-      onOpenNotes={() => { setMobileNotesOpen(true); setMobileFabOpen(false); setMobileMoreOpen(false); }}
+      onOpenNotes={() => { setMobileNotesOpen(true); setMobileFabOpen(false); }}
       onToggleTools={toggleMobileTools}
-      onToggleMore={() => { setMobileMoreOpen((open) => !open); setMobileFabOpen(false); }}
-      onSubmit={() => { setMobileMoreOpen(false); void submit(); }}
+      onSubmit={() => { void submit(); }}
     />
 
     <div className="reader-body">
@@ -1066,7 +1093,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
         <div className="notes-list">
           <div className="notes-actions"><button className="btn btn-primary" onClick={() => addNote("KEY_POINT")}>新增重點筆記</button><button className="btn btn-outline" onClick={() => addNote("QUESTION")}>新增盲點提問</button></div>
           {shownNotes.length === 0 && <div className="subtle">目前尚無筆記。</div>}
-          {shownNotes.map((note) => <article className="note-card" key={note.id}><div className="note-meta"><span>{note.type === "KEY_POINT" ? "重點" : "盲點提問"} / 第{note.page}頁</span>{note.page !== currentPage && <button className="btn" style={{ padding: "4px 7px" }} onClick={() => void navigateTo(note.page)}>前往第{note.page}頁</button>}</div><textarea ref={(element) => { noteInputRefs.current[note.id] = element; }} value={note.content} onChange={(e) => updateNote(note.id, e.target.value)} placeholder={note.type === "KEY_POINT" ? "輸入本頁重要概念" : "輸入待釐清的問題"} /><button className="btn btn-danger" onClick={() => deleteNote(note.id)}>刪除筆記</button></article>)}
+          {shownNotes.map((note) => <article className="note-card" key={note.id}><div className="note-meta"><span>{note.type === "KEY_POINT" ? "重點" : "盲點提問"} / 第{note.page}頁</span>{note.page !== currentPage && <button className="btn" style={{ padding: "4px 7px" }} onClick={() => void navigateTo(note.page)}>前往第{note.page}頁</button>}</div><textarea ref={(element) => { noteInputRefs.current[note.id] = element; }} value={note.content} onChange={(e) => updateNote(note.id, e.target.value)} onBlur={() => syncNote(note)} placeholder={note.type === "KEY_POINT" ? "輸入本頁重要概念" : "輸入待釐清的問題"} /><button className="btn btn-danger" onClick={() => deleteNote(note.id)}>刪除筆記</button></article>)}
         </div>
         {layoutMode === "NOTES" && pageControls("notes-full-page-controls")}
         <div className="submit-bar"><button className="btn btn-primary" style={{ width: "100%" }} onClick={submit} disabled={submitting}>{submitting ? "繳交中…" : "繳交教材筆記"}</button></div>
@@ -1076,7 +1103,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
     <ReaderMobileFab
       open={mobileFabOpen}
       hidden={Boolean(tool) || mobileNotesOpen || mobileJumpOpen}
-      onToggle={() => { setMobileFabOpen((open) => !open); setMobileMoreOpen(false); }}
+      onToggle={() => { setMobileFabOpen((open) => !open); }}
       onAddKeyPoint={() => addMobileNote("KEY_POINT")}
       onAddQuestion={() => addMobileNote("QUESTION")}
     />
@@ -1094,7 +1121,7 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
         <div className="notes-actions reader-mobile-note-actions"><button className="btn btn-primary" onClick={() => addNote("KEY_POINT")}>＋ 重點筆記</button><button className="btn btn-outline" onClick={() => addNote("QUESTION")}>＋ 盲點提問</button></div>
         <div className="notes-list reader-mobile-notes-list">
           {shownNotes.length === 0 && <div className="subtle">目前尚無筆記。可使用上方按鈕建立本頁筆記。</div>}
-          {shownNotes.map((note) => <article className="note-card" key={note.id}><div className="note-meta"><span>{note.type === "KEY_POINT" ? "重點" : "盲點提問"} / 第{note.page}頁</span>{note.page !== currentPage && <button className="btn btn-compact" onClick={() => void navigateTo(note.page)}>前往第{note.page}頁</button>}</div><textarea ref={(element) => { noteInputRefs.current[note.id] = element; }} value={note.content} onChange={(event) => updateNote(note.id, event.target.value)} placeholder={note.type === "KEY_POINT" ? "輸入本頁重要概念" : "輸入待釐清的問題"} /><button className="btn btn-danger btn-compact" onClick={() => deleteNote(note.id)}>刪除筆記</button></article>)}
+          {shownNotes.map((note) => <article className="note-card" key={note.id}><div className="note-meta"><span>{note.type === "KEY_POINT" ? "重點" : "盲點提問"} / 第{note.page}頁</span>{note.page !== currentPage && <button className="btn btn-compact" onClick={() => void navigateTo(note.page)}>前往第{note.page}頁</button>}</div><textarea ref={(element) => { noteInputRefs.current[note.id] = element; }} value={note.content} onChange={(event) => updateNote(note.id, event.target.value)} onBlur={() => syncNote(note)} placeholder={note.type === "KEY_POINT" ? "輸入本頁重要概念" : "輸入待釐清的問題"} /><button className="btn btn-danger btn-compact" onClick={() => deleteNote(note.id)}>刪除筆記</button></article>)}
         </div>
         <div className="submit-bar reader-mobile-sheet-submit"><button className="btn btn-primary" type="button" onClick={() => void submit()} disabled={submitting}>{submitting ? "繳交中…" : "繳交教材筆記"}</button></div>
       </section>

@@ -11,7 +11,7 @@ import {
   parseActivityFilters,
   recordedAtWhere,
 } from "@/lib/activity-filter";
-import { completionPercent, distinctVisitedPages, pageListLabel } from "@/lib/reading-analytics";
+import { browsingProgressPercent, distinctVisitedPages, pageListLabel } from "@/lib/reading-analytics";
 import { formatDuration } from "@/lib/reading-activity";
 import { requireCourseManager } from "@/lib/auth/course-access";
 
@@ -60,7 +60,7 @@ export default async function SubmissionResourcePage({
     ...(filters.page ? { page: filters.page } : {}),
   };
 
-  const [submissions, understandingStates, understandingEvents, allVisits, filteredVisits, dailyActivities] = await Promise.all([
+  const [submissions, understandingStates, understandingEvents, allVisits, filteredVisits, dailyActivities, resourceDailyActivities] = await Promise.all([
     prisma.readingSubmission.findMany({
       where: { resourceId, userId: { in: userIds } },
       include: {
@@ -100,6 +100,15 @@ export default async function SubmissionResourcePage({
       select: { userId: true, activityDate: true, lastActivityAt: true },
       orderBy: { activityDate: "asc" },
     }),
+    prisma.resourceDailyActivity.findMany({
+      where: {
+        resourceId,
+        userId: { in: userIds },
+        ...(dailyDateWhere ? { activityDate: dailyDateWhere } : {}),
+      },
+      select: { userId: true, activityDate: true, lastActivityAt: true },
+      orderBy: { activityDate: "asc" },
+    }),
   ]);
 
   const submissionMap = new Map(submissions.map((submission) => [submission.userId, submission]));
@@ -108,12 +117,14 @@ export default async function SubmissionResourcePage({
   const allVisitsByUser = new Map<string, typeof allVisits>();
   const visitsByUser = new Map<string, typeof filteredVisits>();
   const dailyByUser = new Map<string, typeof dailyActivities>();
+  const resourceDailyByUser = new Map<string, typeof resourceDailyActivities>();
 
   for (const state of understandingStates) statesByUser.set(state.userId, [...(statesByUser.get(state.userId) ?? []), state]);
   for (const event of understandingEvents) eventsByUser.set(event.userId, [...(eventsByUser.get(event.userId) ?? []), event]);
   for (const visit of allVisits) allVisitsByUser.set(visit.userId, [...(allVisitsByUser.get(visit.userId) ?? []), visit]);
   for (const visit of filteredVisits) visitsByUser.set(visit.userId, [...(visitsByUser.get(visit.userId) ?? []), visit]);
   for (const activity of dailyActivities) dailyByUser.set(activity.userId, [...(dailyByUser.get(activity.userId) ?? []), activity]);
+  for (const activity of resourceDailyActivities) resourceDailyByUser.set(activity.userId, [...(resourceDailyByUser.get(activity.userId) ?? []), activity]);
 
   const studentKeyword = filters.student.toLocaleLowerCase("zh-TW");
   const students = [...resource.course.enrollments]
@@ -125,8 +136,9 @@ export default async function SubmissionResourcePage({
       const visitsAll = allVisitsByUser.get(enrollment.userId) ?? [];
       const visits = visitsByUser.get(enrollment.userId) ?? [];
       const daily = dailyByUser.get(enrollment.userId) ?? [];
+      const resourceDaily = resourceDailyByUser.get(enrollment.userId) ?? [];
       const visitedPages = distinctVisitedPages(visitsAll);
-      const completion = completionPercent(visitedPages.length, resource.asset.pageCount);
+      const browsingProgress = browsingProgressPercent(visitedPages.length, resource.asset.pageCount);
       const notUnderstoodPages = states.filter((state) => state.status === "NOT_UNDERSTOOD").map((state) => state.page);
       const understoodPages = states.filter((state) => state.status === "UNDERSTOOD").map((state) => state.page);
       const totalDuration = visits.reduce((sum, visit) => sum + visit.durationSeconds, 0);
@@ -136,6 +148,7 @@ export default async function SubmissionResourcePage({
         ...events.map((event) => event.recordedAt),
         ...visits.map((visit) => visit.enteredAt),
         ...daily.map((activity) => activity.lastActivityAt),
+        ...resourceDaily.map((activity) => activity.lastActivityAt),
       ]);
       return {
         enrollment,
@@ -144,8 +157,9 @@ export default async function SubmissionResourcePage({
         events,
         visits,
         daily,
+        resourceDaily,
         visitedPages,
-        completion,
+        browsingProgress,
         notUnderstoodPages,
         understoodPages,
         totalDuration,
@@ -167,13 +181,13 @@ export default async function SubmissionResourcePage({
       if (!resource.asset.pageCount) return states.length === 0;
       return states.length < resource.asset.pageCount;
     })
-    .filter(({ visitedPages, completion }) => {
+    .filter(({ visitedPages, browsingProgress }) => {
       if (filters.completion === "ALL") return true;
       if (filters.completion === "NOT_STARTED") return visitedPages.length === 0;
-      if (filters.completion === "COMPLETE") return completion === 100;
-      return visitedPages.length > 0 && completion !== 100;
+      if (filters.completion === "COMPLETE") return browsingProgress === 100;
+      return visitedPages.length > 0 && browsingProgress !== 100;
     })
-    .filter(({ submission, events, visits, daily }) => {
+    .filter(({ submission, events, visits, daily, resourceDaily }) => {
       const notes = submission?.notes ?? [];
       const highlights = submission?.highlights ?? [];
       if (filters.recordType === "NOTE") return notes.length > 0;
@@ -181,13 +195,14 @@ export default async function SubmissionResourcePage({
       if (filters.recordType === "UNDERSTANDING") return events.length > 0;
       if (filters.recordType === "VISIT") return visits.length > 0;
       if (filters.recordType === "DAILY_ACTIVITY") return daily.length > 0;
+      if (filters.recordType === "RESOURCE_DAILY_ACTIVITY") return resourceDaily.length > 0;
 
       const eventFilterActive = Boolean(filters.from || filters.to || filters.noteType !== "ALL" || filters.highlightColor !== "ALL" || filters.page);
       if (!eventFilterActive) return true;
       if (filters.noteType !== "ALL") return notes.length > 0;
       if (filters.highlightColor !== "ALL") return highlights.length > 0;
       if (filters.page) return notes.length + highlights.length + events.length + visits.length > 0;
-      return notes.length + highlights.length + events.length + visits.length + daily.length > 0;
+      return notes.length + highlights.length + events.length + visits.length + daily.length + resourceDaily.length > 0;
     });
 
   const query = activityQuery(filters);
@@ -205,13 +220,13 @@ export default async function SubmissionResourcePage({
         <label>起始日期<input type="date" name="from" defaultValue={filters.from} /></label>
         <label>結束日期<input type="date" name="to" defaultValue={filters.to} /></label>
         <label>紀錄類型<select name="recordType" defaultValue={filters.recordType}>
-          <option value="ALL">全部</option><option value="NOTE">文字筆記</option><option value="HIGHLIGHT">螢光筆劃記</option><option value="UNDERSTANDING">理解狀態歷程</option><option value="VISIT">停留時間紀錄</option><option value="DAILY_ACTIVITY">學習活動日</option>
+          <option value="ALL">全部</option><option value="NOTE">文字筆記</option><option value="HIGHLIGHT">螢光筆劃記</option><option value="UNDERSTANDING">自陳理解狀態歷程</option><option value="VISIT">頁面停留時間紀錄</option><option value="DAILY_ACTIVITY">課程活動日</option><option value="RESOURCE_DAILY_ACTIVITY">教材閱讀日</option>
         </select></label>
-        <label>最終理解狀態<select name="understanding" defaultValue={filters.understanding}>
+        <label>目前自陳理解狀態<select name="understanding" defaultValue={filters.understanding}>
           <option value="ALL">全部</option><option value="UNDERSTOOD">有「我懂了」頁面</option><option value="NOT_UNDERSTOOD">有「我不懂」頁面</option><option value="UNSET">有尚未選擇頁面</option>
         </select></label>
-        <label>閱讀完成率<select name="completion" defaultValue={filters.completion}>
-          <option value="ALL">全部</option><option value="COMPLETE">100%完成</option><option value="INCOMPLETE">已開始但未完成</option><option value="NOT_STARTED">尚未開始</option>
+        <label>教材瀏覽進度<select name="completion" defaultValue={filters.completion}>
+          <option value="ALL">全部</option><option value="COMPLETE">100%已瀏覽</option><option value="INCOMPLETE">已開始但未瀏覽全部頁面</option><option value="NOT_STARTED">尚未開始瀏覽</option>
         </select></label>
         <label>頁碼<input type="number" name="page" min={1} defaultValue={filters.page ?? ""} placeholder="全部頁面" /></label>
         <label>筆記分類<select name="noteType" defaultValue={filters.noteType}><option value="ALL">全部</option><option value="KEY_POINT">重點</option><option value="QUESTION">盲點提問</option></select></label>
@@ -219,7 +234,7 @@ export default async function SubmissionResourcePage({
         <label className="activity-filter-student">學生<input name="student" defaultValue={filters.student} placeholder="學號或姓名" /></label>
         <div className="activity-filter-actions"><button className="btn btn-primary" type="submit">套用篩選</button><Link className="btn btn-outline" href={`/ta/courses/${courseId}/submissions/${resourceId}`}>清除篩選</Link></div>
       </form>
-      <div className="filter-summary"><strong>篩選期間：</strong>{filterPeriodLabel(filters)}<span> / 顯示{students.length}位學生</span><span> / 活動日以{APP_TIME_ZONE}日界線計算</span></div>
+      <div className="filter-summary"><strong>篩選期間：</strong>{filterPeriodLabel(filters)}<span> / 顯示{students.length}位學生</span><span> / 教材瀏覽進度與目前自陳理解狀態為全期最新狀態</span><span> / 活動日以{APP_TIME_ZONE}日界線計算</span></div>
     </section>
 
     <section className="card panel">
@@ -228,15 +243,16 @@ export default async function SubmissionResourcePage({
         <a className="btn btn-outline btn-nowrap" href={`/api/ta/submissions/resources/${resource.id}/export${querySuffix}`}>匯出CSV</a>
       </div>
       {students.length === 0 ? <div className="subtle">目前沒有符合篩選條件的學生紀錄。</div> : <div className="table-wrap"><table>
-        <thead><tr><th>學號</th><th>姓名</th><th>繳交</th><th>完成率</th><th>已閱讀</th><th>不理解頁面</th><th>學習活動天數</th><th>停留時間</th><th>筆記/劃記</th><th>最近活動</th><th></th></tr></thead>
-        <tbody>{students.map(({ enrollment, submission, visitedPages, completion, notUnderstoodPages, daily, totalDuration, latest }) => <tr key={enrollment.userId}>
+        <thead><tr><th>學號</th><th>姓名</th><th>繳交</th><th>教材瀏覽進度</th><th>已瀏覽頁面(全期)</th><th>目前自陳不理解頁面</th><th>課程活動天數</th><th>教材閱讀天數</th><th>頁面停留時間</th><th>筆記/劃記</th><th>最近活動</th><th></th></tr></thead>
+        <tbody>{students.map(({ enrollment, submission, visitedPages, browsingProgress, notUnderstoodPages, daily, resourceDaily, totalDuration, latest }) => <tr key={enrollment.userId}>
           <td><strong>{enrollment.user.username}</strong></td>
           <td>{enrollment.user.displayName || "—"}</td>
-          <td>{submission ? <span className="status-submitted">已繳交</span> : <span className="status-pending">尚未繳交</span>}</td>
-          <td><strong>{completion == null ? "—" : `${completion}%`}</strong></td>
+          <td>{submission?.status === "SUBMITTED" ? <span className="status-submitted">已繳交</span> : submission ? <span className="status-pending">草稿未繳交</span> : <span className="status-pending">尚未繳交</span>}</td>
+          <td><strong>{browsingProgress == null ? "—" : `${browsingProgress}%`}</strong></td>
           <td>{resource.asset.pageCount ? `${visitedPages.length}/${resource.asset.pageCount}頁` : `${visitedPages.length}頁`}</td>
           <td className={notUnderstoodPages.length ? "understanding-text-no" : "subtle"}>{pageListLabel(notUnderstoodPages)}</td>
           <td>{daily.length}天</td>
+          <td>{resourceDaily.length}天</td>
           <td>{formatDuration(totalDuration)}</td>
           <td>{submission?.notes.length ?? 0} / {submission?.highlights.length ?? 0}</td>
           <td>{latest ? formatAppDate(latest) : "—"}</td>

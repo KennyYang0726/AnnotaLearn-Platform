@@ -82,7 +82,7 @@ After signing in again, Docker commands can be used without `sudo`.
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/KennyYang0726/AnnotaLearn-Platform.git
 cd AnnotaLearn-Platform
 ```
 

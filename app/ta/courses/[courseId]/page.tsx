@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireCourseManager, assignedCourseIdsForTa } from "@/lib/auth/course-access";
-import { formatAppDateTimeDisplay } from "@/lib/app-timezone";
+import { formatAppDateTimeDisplay, formatAppDateTimeInput } from "@/lib/app-timezone";
 import AssetUploadForm from "@/components/admin/AssetUploadForm";
 import ResourceManager from "@/components/admin/ResourceManager";
 import CourseDownloadSetting from "@/components/admin/CourseDownloadSetting";
-import CourseResourceOrderControls from "@/components/admin/CourseResourceOrderControls";
+import CourseStructureManager from "@/components/admin/CourseStructureManager";
 
 export default async function TaCoursePage({ params }: { params: Promise<{ courseId: string }> }) {
   const { courseId } = await params;
@@ -18,11 +18,12 @@ export default async function TaCoursePage({ params }: { params: Promise<{ cours
       where: { id: courseId },
       include: {
         semester: true,
+        sections: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
         enrollments: { include: { user: true }, orderBy: { user: { username: "asc" } } },
         resources: {
           include: {
             asset: true,
-            _count: { select: { submissions: true, pageUnderstandingStates: true, pageUnderstandingEvents: true, pageVisits: true } },
+            _count: { select: { submissions: { where: { status: "SUBMITTED" } }, pageUnderstandingStates: true, pageUnderstandingEvents: true, pageVisits: true } },
           },
           orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
         },
@@ -58,12 +59,15 @@ export default async function TaCoursePage({ params }: { params: Promise<{ cours
 
     <section className="card panel stack"><h2 className="h2">課程設定</h2><CourseDownloadSetting courseId={course.id} initialEnabled={course.allowMaterialDownload} endpoint={`/api/ta/courses/${course.id}`} /></section>
 
-    <section className="card panel">
-      <div className="between" style={{ marginBottom: 12 }}><div><h2 className="h2" style={{ margin: 0 }}>目前教材</h2><div className="subtle" style={{ marginTop: 4 }}>可調整學生端教材順序。</div></div></div>
-      {course.resources.length === 0 ? <div className="subtle">尚未加入教材。</div> : course.resources.map((resource, index) => <div className="resource-row course-resource-row" key={resource.id}>
-        <div className="course-resource-main"><strong>{index + 1}. {resource.title}</strong><div className="subtle asset-filename">{resource.asset.originalName}</div></div>
-        <div className="course-resource-actions"><span className="badge">{resource._count.submissions}份已繳交</span><CourseResourceOrderControls courseId={course.id} resourceId={resource.id} canMoveUp={index > 0} canMoveDown={index < course.resources.length - 1} endpoint="/api/ta/course-resources" /></div>
-      </div>)}
+    <section className="card panel stack">
+      <div><h2 className="h2">課程內容安排</h2><div className="subtle">以課程單元組織教材，並可將個別教材設定為具有開放／截止時間的閱讀任務。</div></div>
+      <CourseStructureManager
+        courseId={course.id}
+        sectionEndpoint="/api/ta/course-sections"
+        resourceEndpoint="/api/ta/course-resources"
+        sections={course.sections.map((section) => ({ id: section.id, title: section.title, description: section.description }))}
+        resources={course.resources.map((resource) => ({ id: resource.id, title: resource.title, originalName: resource.asset.originalName, sectionId: resource.sectionId, readingTaskEnabled: resource.readingTaskEnabled, availableFrom: resource.availableFrom ? formatAppDateTimeInput(resource.availableFrom) : "", dueAt: resource.dueAt ? formatAppDateTimeInput(resource.dueAt) : "", submittedCount: resource._count.submissions }))}
+      />
     </section>
 
     <section className="card panel stack">

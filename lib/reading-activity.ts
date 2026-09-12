@@ -31,3 +31,21 @@ export async function recordCourseDailyActivity(args: {
   });
   return true;
 }
+
+export async function recordResourceDailyActivity(args: {
+  resourceId: string;
+  userId: string;
+  courseStartAt: Date;
+  courseEndAt: Date;
+  at?: Date;
+}) {
+  const at = args.at ?? new Date();
+  if (!coursePeriodContains(args.courseStartAt, args.courseEndAt, at)) return false;
+  const activityDate = appDateAsDbDate(at);
+  await prisma.resourceDailyActivity.upsert({
+    where: { resourceId_userId_activityDate: { resourceId: args.resourceId, userId: args.userId, activityDate } },
+    update: { lastActivityAt: at },
+    create: { resourceId: args.resourceId, userId: args.userId, activityDate, firstActivityAt: at, lastActivityAt: at },
+  });
+  return true;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import PasswordInput from "@/components/auth/PasswordInput";
 import { useRouter } from "next/navigation";
 
 type Course = { id: string; label: string };
@@ -85,7 +86,7 @@ export default function AssistantManager({ courses, assistants }: { courses: Cou
           <label>登入帳號<input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="例如：ta01" required /></label>
           <label>顯示名稱（選填）<input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="例如：王小明助教" /></label>
         </div>
-        <label>初始密碼<input type="password" minLength={8} value={initialPassword} onChange={(e) => setInitialPassword(e.target.value)} required /><span className="subtle">至少8個字元，首次登入後必須自行變更。</span></label>
+        <label>初始密碼<PasswordInput minLength={8} value={initialPassword} onChange={(e) => setInitialPassword(e.target.value)} autoComplete="new-password" required /><span className="subtle">至少8個字元，首次登入後必須自行變更。</span></label>
         {courses.length > 0 && <fieldset className="assistant-course-picker">
           <legend>建立後先分配到哪些課程（選填）</legend>
           <div className="assistant-course-options">{courses.map((course) => <label className="assistant-course-check" key={course.id}>

@@ -14,7 +14,7 @@ export default async function SubmissionCoursePage({ params }: { params: Promise
       resources: {
         include: {
           asset: true,
-          submissions: { select: { id: true, notes: { select: { id: true } }, highlights: { select: { id: true } } } },
+          submissions: { where: { status: "SUBMITTED" }, select: { id: true, notes: { select: { id: true } }, highlights: { select: { id: true } } } },
         },
         orderBy: { sortOrder: "asc" },
       },

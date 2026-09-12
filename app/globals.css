@@ -465,38 +465,29 @@ th { color: var(--muted); font-size: 13px; }
 
   .reader-mobile-icon-button { font-size: 22px; line-height: 1; }
   .reader-mobile-text-button { padding: 0 9px; font-size: 13px; }
+  .reader-mobile-submit-button { min-height: 36px; padding: 0 10px; border: 0; border-radius: 8px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 800; white-space: nowrap; cursor: pointer; flex: 0 0 auto; }
+  .reader-mobile-submit-button:disabled { opacity: .6; cursor: default; }
   .reader-mobile-text-button.is-active { background: #e7edff; color: var(--primary); }
   .reader-mobile-count { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; display: inline-grid; place-items: center; background: #e2e7f1; font-size: 11px; }
 
-  .reader-mobile-more-wrap { position: relative; flex: 0 0 auto; }
-  .reader-mobile-more-menu {
-    position: absolute;
-    top: calc(100% + 6px);
-    right: 0;
-    z-index: 30;
-    width: 190px;
-    padding: 7px;
-    display: grid;
-    gap: 4px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    background: #fff;
-    box-shadow: 0 14px 34px rgba(23,32,51,.2);
-  }
-  .reader-mobile-more-menu a,
-  .reader-mobile-more-menu button {
-    width: 100%;
-    min-height: 42px;
-    padding: 9px 10px;
-    border: 0;
+  .reader-mobile-download-button {
+    min-height: 36px;
+    padding: 0 9px;
     border-radius: 8px;
-    background: transparent;
+    background: #f1f4f9;
     color: var(--text);
-    text-align: left;
-    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 800;
+    white-space: nowrap;
+    text-decoration: none;
   }
-  .reader-mobile-more-menu a:hover,
-  .reader-mobile-more-menu button:hover { background: #f4f6fa; }
+  .reader-mobile-download-button:hover { background: #e8edf5; }
+  .reader-mobile-download-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: 0 0 auto; }
 
   .reader-body { min-width: 0; overflow: hidden; }
   .reader-page .pdf-pane {
@@ -732,6 +723,8 @@ th { color: var(--muted); font-size: 13px; }
   .reader-mobile-icon-button { min-width: 40px; }
   .reader-mobile-text-button { min-width: 0; padding: 0 7px; }
   .reader-mobile-count { display: none; }
+  .reader-mobile-download-label { display: none; }
+  .reader-mobile-download-button { width: 38px; min-width: 38px; padding: 0; }
   .reader-mobile-tool-settings { align-items: stretch; }
   .reader-mobile-tool-settings .reader-brush-size { padding-left: 7px; padding-right: 7px; }
   .reader-mobile-zoom { grid-template-columns: 36px 50px 36px; }
@@ -828,4 +821,64 @@ th { color: var(--muted); font-size: 13px; }
   .delete-actions { width: 100%; }
   .delete-actions .btn { flex: 1 1 0; min-width: 0; }
   .asset-filename { max-width: 72vw; }
+}
+
+.password-input-wrap { position: relative; width: 100%; }
+.password-input-wrap > input { width: 100%; padding-right: 44px; }
+.password-visibility-button { position: absolute; top: 50%; right: 6px; width: 34px; height: 34px; padding: 7px; transform: translateY(-50%); display: grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+.password-visibility-button:hover { background: rgba(127,127,127,.12); color: inherit; }
+.password-visibility-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+.password-visibility-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 課程單元、教材安排與閱讀任務 */
+.course-structure-manager { gap: 24px; }
+.course-section-editor, .course-resource-structure { display: grid; gap: 14px; }
+.course-structure-title { margin: 0 0 4px; font-size: 17px; }
+.course-section-create-grid { display: grid; grid-template-columns: minmax(180px, .8fr) minmax(240px, 1.4fr) auto; gap: 10px; align-items: end; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: #fafbfe; }
+.course-section-list { display: grid; gap: 8px; }
+.course-section-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: white; }
+.course-section-number { width: 34px; height: 34px; border-radius: 10px; background: #edf1fb; color: var(--primary-dark); display: grid; place-items: center; font-size: 12px; font-weight: 800; }
+.course-section-fields { display: grid; grid-template-columns: minmax(170px, .7fr) minmax(220px, 1.3fr); gap: 8px; }
+.course-section-fields input { padding: 8px 10px; }
+.course-section-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.course-structure-group { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: white; }
+.course-structure-group-head { padding: 12px 14px; background: #f7f9fd; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.course-structure-resource { padding: 16px; display: grid; gap: 13px; border-bottom: 1px solid var(--border); }
+.course-structure-resource:last-child { border-bottom: 0; }
+.course-structure-resource-head { display: flex; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.course-resource-badges { gap: 6px; margin-bottom: 6px; }
+.reading-task-badge { background: #e7f6ef; color: #146c43; }
+.course-resource-config-grid, .reading-task-time-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.reading-task-toggle { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: grid; grid-template-columns: 1fr auto; column-gap: 12px; align-items: center; }
+.reading-task-toggle > span:first-child { font-weight: 700; }
+.reading-task-toggle .subtle { font-size: 12px; font-weight: 400; }
+.reading-task-toggle input { width: 18px; height: 18px; grid-column: 2; grid-row: 1 / span 2; margin: 0; }
+.reading-task-time-grid { padding: 12px; border-radius: 12px; background: #f8fafc; border: 1px solid var(--border); }
+.reading-task-time-grid label .subtle { font-size: 12px; font-weight: 400; }
+.course-resource-save-row { display: flex; justify-content: flex-end; }
+
+/* 學生端課程單元與閱讀任務 */
+.student-course-content { gap: 22px; }
+.student-course-section { border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: white; }
+.student-course-section-head { padding: 16px 18px; background: #f7f9fd; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.student-course-section-head h3 { margin: 3px 0 0; font-size: 19px; }
+.student-course-section-head p { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.student-section-kicker { color: var(--primary); font-size: 10px; font-weight: 800; letter-spacing: .09em; }
+.student-resource-card { padding: 16px 18px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: center; }
+.student-resource-card:last-child { border-bottom: 0; }
+.student-resource-locked { background: #fafafa; }
+.student-resource-title { display: block; margin: 5px 0 5px; font-size: 16px; }
+.student-resource-meta { gap: 6px; }
+.student-resource-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.student-task-window { margin-top: 8px; display: flex; gap: 8px 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; }
+.task-status-upcoming { background: #eef0f4; color: #505968; }
+.task-status-overdue { background: #fff1e8; color: #9a4a13; }
+
+@media (max-width: 850px) {
+  .course-section-create-grid, .course-section-row, .course-section-fields, .course-resource-config-grid, .reading-task-time-grid { grid-template-columns: 1fr; }
+  .course-section-number { display: none; }
+  .course-section-actions, .course-resource-save-row { justify-content: flex-start; }
+  .course-structure-resource-head, .student-course-section-head { flex-direction: column; }
+  .student-resource-card { grid-template-columns: 1fr; }
+  .student-resource-actions { justify-content: flex-start; }
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import { prisma } from "@/lib/db";
 import type { SessionUser } from "@/lib/auth/session";
+import { isReadingTaskAvailable } from "@/lib/reading-task";
 
 export async function getAuthorizedResource(resourceId: string, user: SessionUser, options?: { allowTa?: boolean }) {
   const resource = await prisma.courseResource.findUnique({
@@ -22,5 +23,6 @@ export async function getAuthorizedResource(resourceId: string, user: SessionUse
   const enrollment = await prisma.enrollment.findUnique({
     where: { userId_courseId: { userId: user.id, courseId: resource.courseId } },
   });
-  return enrollment ? resource : null;
+  if (!enrollment) return null;
+  return isReadingTaskAvailable(resource) ? resource : null;
 }

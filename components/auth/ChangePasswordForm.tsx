@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import PasswordInput from "@/components/auth/PasswordInput";
 
 export default function ChangePasswordForm() {
   const router = useRouter();
@@ -35,9 +36,9 @@ export default function ChangePasswordForm() {
 
   return (
     <form className="stack" onSubmit={submit}>
-      <label>目前密碼<input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required /></label>
-      <label>新密碼<input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required /></label>
-      <label>再次輸入新密碼<input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} minLength={8} required /></label>
+      <label>目前密碼<PasswordInput value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} autoComplete="current-password" required /></label>
+      <label>新密碼<PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>
+      <label>再次輸入新密碼<PasswordInput value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" minLength={8} required /></label>
       <div className="subtle">新密碼至少8個字元。首次登入使用初始密碼的帳號必須完成此步驟。</div>
       {error && <div className="error">{error}</div>}
       <button className="btn btn-primary" disabled={loading}>{loading ? "儲存中…" : "更新密碼"}</button>
