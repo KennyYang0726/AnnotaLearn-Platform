@@ -1,7 +1,14 @@
 export async function loadPdfJs() {
-  const pdfjs = await import("pdfjs-dist");
+  // Use PDF.js' legacy build for wider real-device browser/WebView support.
+  // The modern build in pdfjs-dist 6.x uses very new JavaScript APIs such as
+  // Map.prototype.getOrInsertComputed(), which can fail on otherwise capable
+  // mobile browsers that have not implemented those APIs yet.
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   if (!pdfjs.GlobalWorkerOptions.workerSrc) {
-    pdfjs.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
+    pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/legacy/build/pdf.worker.min.mjs",
+      import.meta.url,
+    ).toString();
   }
   return pdfjs;
 }
