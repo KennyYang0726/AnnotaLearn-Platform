@@ -131,7 +131,7 @@ export default function CourseStructureManager({ courseId, sections, resources, 
 
   return <div className="stack course-structure-manager">
     <section className="course-section-editor">
-      <div className="between"><div><h3 className="course-structure-title">課程單元／週次</h3><div className="subtle">可依週次或主題建立單元；不建立也能維持原本的教材清單。</div></div></div>
+      <div className="between"><div><h3 className="course-structure-title">課程單元/週次</h3><div className="subtle">可依週次或主題建立單元；不建立也能維持原本的教材清單。</div></div></div>
       <div className="course-section-create-grid"><label>單元名稱<input value={newTitle} maxLength={120} placeholder="例如：第1週、單元一 靜力平衡" onChange={(e) => setNewTitle(e.target.value)} /></label><label>說明（選填）<input value={newDescription} maxLength={500} placeholder="簡短說明本單元內容" onChange={(e) => setNewDescription(e.target.value)} /></label><button type="button" className="btn btn-primary" disabled={busy === "new" || !newTitle.trim()} onClick={createSection}>{busy === "new" ? "新增中…" : "新增單元"}</button></div>
       {sections.length > 0 && <div className="course-section-list">{sections.map((section, index) => <SectionRow key={section.id} section={section} index={index} total={sections.length} busy={busy === section.id} onSave={updateSection} onRemove={removeSection} />)}</div>}
     </section>

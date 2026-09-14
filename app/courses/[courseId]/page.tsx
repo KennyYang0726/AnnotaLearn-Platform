@@ -65,10 +65,10 @@ export default async function StudentCoursePage({ params }: { params: Promise<{ 
   return <div className="stack">
     <div className="page-head">
       <Link href="/courses" className="subtle">←返回我的課程</Link>
-      <div style={{ marginTop: 12 }}><span className="badge">{course.semester.code}</span><h1 className="h1" style={{ marginTop: 8 }}>{course.name}</h1><div className="subtle">課程期間：{formatAppDateTimeDisplay(course.startAt, { dateStyle: "medium", timeStyle: "short" })}～{formatAppDateTimeDisplay(course.endAt, { dateStyle: "medium", timeStyle: "short" })}</div></div>
+      <div className="between student-course-head-actions" style={{ marginTop: 12 }}><div><span className="badge">{course.semester.code}</span><h1 className="h1" style={{ marginTop: 8 }}>{course.name}</h1><div className="subtle">課程期間：{formatAppDateTimeDisplay(course.startAt, { dateStyle: "medium", timeStyle: "short" })}～{formatAppDateTimeDisplay(course.endAt, { dateStyle: "medium", timeStyle: "short" })}</div></div><Link className="btn btn-outline" href={`/courses/${course.id}/analytics`}>我的學習分析</Link></div>
     </div>
     <section className="card panel stack student-course-content">
-      <div><h2 className="h2">課程教材</h2><div className="subtle">教材依教師設定的課程單元排列；閱讀任務若有開放或截止時間，會在教材下方標示。</div></div>
+      <div><h2 className="h2">課程教材</h2><div className="subtle">教材依教師設定的課程單元排列，閱讀任務若有開放或截止時間，會在教材下方標示。</div></div>
       {course.resources.length === 0 ? <div className="subtle">目前尚無教材。</div> : <>
         {course.sections.map((section) => {
           const resources = course.resources.filter((resource) => resource.sectionId === section.id);

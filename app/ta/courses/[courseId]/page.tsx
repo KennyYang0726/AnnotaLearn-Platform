@@ -53,6 +53,7 @@ export default async function TaCoursePage({ params }: { params: Promise<{ cours
     </div>
 
     <div className="ta-workspace-actions">
+      <Link className="card ta-workspace-link" href={`/ta/courses/${course.id}/analytics`}><strong>學習分析Dashboard</strong><span>查看課程、教材、頁面與學生層級的學習歷程視覺化</span></Link>
       <Link className="card ta-workspace-link" href={`/ta/courses/${course.id}/submissions`}><strong>閱讀 / 繳交紀錄</strong><span>查看本課學生閱讀、筆記、理解狀態與匯出資料</span></Link>
       <Link className="card ta-workspace-link" href={`/ta/courses/${course.id}/highlights`}><strong>課程劃記總覽</strong><span>疊合查看本課學生的重點與疑問劃記</span></Link>
     </div>
@@ -60,7 +61,7 @@ export default async function TaCoursePage({ params }: { params: Promise<{ cours
     <section className="card panel stack"><h2 className="h2">課程設定</h2><CourseDownloadSetting courseId={course.id} initialEnabled={course.allowMaterialDownload} endpoint={`/api/ta/courses/${course.id}`} /></section>
 
     <section className="card panel stack">
-      <div><h2 className="h2">課程內容安排</h2><div className="subtle">以課程單元組織教材，並可將個別教材設定為具有開放／截止時間的閱讀任務。</div></div>
+      <div><h2 className="h2">課程內容安排</h2><div className="subtle">以課程單元組織教材，並可將個別教材設定為具有開放/截止時間的閱讀任務。</div></div>
       <CourseStructureManager
         courseId={course.id}
         sectionEndpoint="/api/ta/course-sections"
