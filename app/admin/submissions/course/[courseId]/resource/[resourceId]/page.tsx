@@ -205,6 +205,7 @@ export default async function SubmissionResourcePage({
 
   const query = activityQuery(filters);
   const querySuffix = query ? `?${query}` : "";
+  const deidentifiedQuerySuffix = `?${query ? `${query}&` : ""}identity=deidentified`;
 
   return <div className="stack">
     <div className="page-head">
@@ -218,7 +219,7 @@ export default async function SubmissionResourcePage({
         <label>起始日期<input type="date" name="from" defaultValue={filters.from} /></label>
         <label>結束日期<input type="date" name="to" defaultValue={filters.to} /></label>
         <label>紀錄類型<select name="recordType" defaultValue={filters.recordType}>
-          <option value="ALL">全部</option><option value="NOTE">文字筆記</option><option value="HIGHLIGHT">螢光筆劃記</option><option value="UNDERSTANDING">自陳理解狀態歷程</option><option value="VISIT">頁面停留時間紀錄</option><option value="DAILY_ACTIVITY">課程活動日</option><option value="RESOURCE_DAILY_ACTIVITY">教材閱讀日</option>
+          <option value="ALL">全部</option><option value="NOTE">文字筆記</option><option value="HIGHLIGHT">螢光筆劃記</option><option value="UNDERSTANDING">自陳理解狀態</option><option value="VISIT">頁面停留時間紀錄</option><option value="DAILY_ACTIVITY">課程活動日</option><option value="RESOURCE_DAILY_ACTIVITY">教材閱讀日</option>
         </select></label>
         <label>目前自陳理解狀態<select name="understanding" defaultValue={filters.understanding}>
           <option value="ALL">全部</option><option value="UNDERSTOOD">有「我懂了」頁面</option><option value="NOT_UNDERSTOOD">有「我不懂」頁面</option><option value="UNSET">有尚未選擇頁面</option>
@@ -238,7 +239,10 @@ export default async function SubmissionResourcePage({
     <section className="card panel">
       <div className="between" style={{ marginBottom: 14 }}>
         <h2 className="h2" style={{ margin: 0 }}>學生紀錄</h2>
-        <a className="btn btn-outline btn-nowrap" href={`/api/admin/submissions/resources/${resource.id}/export${querySuffix}`}>匯出CSV</a>
+        <div className="row">
+          <a className="btn btn-outline btn-nowrap" href={`/api/admin/submissions/resources/${resource.id}/export${querySuffix}`}>具名完整CSV</a>
+          <a className="btn btn-outline btn-nowrap" href={`/api/admin/submissions/resources/${resource.id}/export${deidentifiedQuerySuffix}`}>去識別化CSV</a>
+        </div>
       </div>
       {students.length === 0 ? <div className="subtle">目前沒有符合篩選條件的學生紀錄。</div> : <div className="table-wrap"><table>
         <thead><tr><th>學號</th><th>姓名</th><th>繳交</th><th>教材瀏覽進度</th><th>已瀏覽頁面(全期)</th><th>目前自陳不理解頁面</th><th>課程活動天數</th><th>教材閱讀天數</th><th>頁面停留時間</th><th>筆記/劃記</th><th>最近活動</th><th></th></tr></thead>

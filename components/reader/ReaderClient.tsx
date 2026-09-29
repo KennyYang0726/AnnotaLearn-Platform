@@ -17,7 +17,7 @@ type Point = [number, number];
 type Note = { id: string; page: number; type: NoteType; content: string; recordedAt: string };
 type Highlight = { id: string; page: number; type: HighlightType; color: HighlightColor; extractedText?: string | null; points: Point[]; strokeWidthRatio?: number; recordedAt: string };
 type TextCharacter = { value: string; x: number; y: number; width: number; height: number; charIndex: number };
-type TextBox = { text: string; chars: TextCharacter[] };
+type TextBox = { text: string; chars: TextCharacter[]; baselineX: number; baselineY: number };
 
 type PdfPageLike = {
   getViewport(args: { scale: number }): { width: number; height: number; scale: number; transform: number[] };
@@ -55,6 +55,17 @@ const LEGACY_STROKE_WIDTH_RATIO = 0.018;
 const BRUSH_SIZE_RATIOS = [0.012, 0.016, 0.020, 0.024, 0.030] as const;
 const BRUSH_SIZE_LABELS = ["極細", "細", "中", "粗", "特粗"] as const;
 const DEFAULT_BRUSH_SIZE = 4;
+const STRAIGHTEN_ANGLE_TOLERANCE_DEG = 20;
+const STRAIGHTEN_MIN_DIRECTIONALITY = 2.75;
+const STRAIGHTEN_MIN_LENGTH_RATIO = 0.018;
+const STRAIGHTEN_MIN_PATH_EFFICIENCY = 0.78;
+const STRAIGHTEN_MIN_AXIS_MONOTONICITY = 0.78;
+const STRAIGHTEN_MAX_ORTHOGONAL_SPREAD_RATIO = 0.20;
+const TEXT_SNAP_RANGE_FACTOR = 0.65;
+const TEXT_SNAP_MAX_RANGE_RATIO = 0.015;
+const TEXT_SNAP_COVERAGE_PRIORITY_GAP = 0.12;
+
+type StrokeAxis = "HORIZONTAL" | "VERTICAL" | "FREE";
 
 function strokeWidthForCanvas(canvasWidth: number, ratio: number) {
   return Math.max(12, canvasWidth * ratio);
@@ -90,6 +101,210 @@ function strokeTouchesCharacter(points: Point[], character: TextCharacter, radiu
     if (segmentIntersectsRect(points[index - 1][0], points[index - 1][1], points[index][0], points[index][1], left, top, right, bottom)) return true;
   }
   return false;
+}
+
+function median(values: number[]) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+function percentile(values: number[], p: number) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil((sorted.length - 1) * p)));
+  return sorted[index];
+}
+
+function strokeAxis(points: Point[], canvasWidth: number, canvasHeight: number): StrokeAxis {
+  if (points.length < 2) return "FREE";
+  const pixels = points.map(([x, y]) => [x * canvasWidth, y * canvasHeight] as Point);
+  const xs = pixels.map((point) => point[0]);
+  const ys = pixels.map((point) => point[1]);
+  const span = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  const minLength = Math.max(16, Math.min(canvasWidth, canvasHeight) * STRAIGHTEN_MIN_LENGTH_RATIO);
+  if (span < minLength) return "FREE";
+
+  const centerX = xs.reduce((sum, value) => sum + value, 0) / xs.length;
+  const centerY = ys.reduce((sum, value) => sum + value, 0) / ys.length;
+  let covarianceXX = 0;
+  let covarianceYY = 0;
+  let covarianceXY = 0;
+  for (const [x, y] of pixels) {
+    const dx = x - centerX;
+    const dy = y - centerY;
+    covarianceXX += dx * dx;
+    covarianceYY += dy * dy;
+    covarianceXY += dx * dy;
+  }
+  covarianceXX /= pixels.length;
+  covarianceYY /= pixels.length;
+  covarianceXY /= pixels.length;
+
+  const trace = covarianceXX + covarianceYY;
+  const discriminant = Math.sqrt(Math.max(0, (covarianceXX - covarianceYY) ** 2 + 4 * covarianceXY ** 2));
+  const majorVariance = (trace + discriminant) / 2;
+  const minorVariance = Math.max((trace - discriminant) / 2, 1e-6);
+  if (majorVariance / minorVariance < STRAIGHTEN_MIN_DIRECTIONALITY) return "FREE";
+
+  // PCA只能判斷整體延伸方向，無法分辨問號、鉤形等「整體偏直但實際高度彎曲」的筆跡。
+  // 再用路徑效率、主軸單調性與垂直主軸的離散程度判斷是否真的像一條線。
+  const theta = 0.5 * Math.atan2(2 * covarianceXY, covarianceXX - covarianceYY);
+  const axisX = Math.cos(theta);
+  const axisY = Math.sin(theta);
+  const normalX = -axisY;
+  const normalY = axisX;
+  const majorPositions = pixels.map(([x, y]) => (x - centerX) * axisX + (y - centerY) * axisY);
+  const minorPositions = pixels.map(([x, y]) => (x - centerX) * normalX + (y - centerY) * normalY);
+  const majorSpan = Math.max(...majorPositions) - Math.min(...majorPositions);
+  if (majorSpan < minLength) return "FREE";
+
+  let pathLength = 0;
+  let majorTravel = 0;
+  for (let index = 1; index < pixels.length; index++) {
+    pathLength += Math.hypot(pixels[index][0] - pixels[index - 1][0], pixels[index][1] - pixels[index - 1][1]);
+    majorTravel += Math.abs(majorPositions[index] - majorPositions[index - 1]);
+  }
+  if (pathLength <= 0 || majorTravel <= 0) return "FREE";
+
+  const endToEnd = Math.hypot(pixels[pixels.length - 1][0] - pixels[0][0], pixels[pixels.length - 1][1] - pixels[0][1]);
+  const pathEfficiency = endToEnd / pathLength;
+  const axisMonotonicity = majorSpan / majorTravel;
+  const minorCenter = median(minorPositions);
+  const orthogonalSpread = percentile(minorPositions.map((value) => Math.abs(value - minorCenter)), 0.9) * 2 / majorSpan;
+  if (pathEfficiency < STRAIGHTEN_MIN_PATH_EFFICIENCY ||
+      axisMonotonicity < STRAIGHTEN_MIN_AXIS_MONOTONICITY ||
+      orthogonalSpread > STRAIGHTEN_MAX_ORTHOGONAL_SPREAD_RATIO) return "FREE";
+
+  let angle = Math.abs(theta * 180 / Math.PI);
+  if (angle > 90) angle = 180 - angle;
+  if (angle <= STRAIGHTEN_ANGLE_TOLERANCE_DEG) return "HORIZONTAL";
+  if (angle >= 90 - STRAIGHTEN_ANGLE_TOLERANCE_DEG) return "VERTICAL";
+  return "FREE";
+}
+
+function rangeOverlap(startA: number, endA: number, startB: number, endB: number) {
+  return Math.max(0, Math.min(endA, endB) - Math.max(startA, startB));
+}
+
+function snapHorizontalLineToText(y: number, minX: number, maxX: number, textBoxes: TextBox[], canvasWidth: number, canvasHeight: number, strokeWidthRatio: number) {
+  const strokeSpan = Math.max(1, maxX - minX);
+  const strokeRadius = strokeWidthForCanvas(canvasWidth, strokeWidthRatio) / 2;
+  const candidates: Array<{ distance: number; centerDistanceRatio: number; overlap: number; visualCoverage: number; target: number }> = [];
+
+  for (const box of textBoxes) {
+    if (Math.abs(box.baselineX) < Math.abs(box.baselineY)) continue;
+    const chars = box.chars.filter((character) => character.x + character.width >= minX && character.x <= maxX);
+    if (!chars.length) continue;
+    const left = Math.min(...chars.map((character) => character.x));
+    const right = Math.max(...chars.map((character) => character.x + character.width));
+    const top = Math.min(...chars.map((character) => character.y));
+    const bottom = Math.max(...chars.map((character) => character.y + character.height));
+    const overlap = rangeOverlap(minX, maxX, left, right) / strokeSpan;
+    if (overlap < 0.08) continue;
+
+    const thickness = Math.max(1, median(chars.map((character) => character.height)));
+    const snapRange = Math.max(5, Math.min(thickness * TEXT_SNAP_RANGE_FACTOR, canvasHeight * TEXT_SNAP_MAX_RANGE_RATIO));
+    const distance = y < top ? top - y : y > bottom ? y - bottom : 0;
+    const visualOverlap = rangeOverlap(y - strokeRadius, y + strokeRadius, top, bottom);
+    if (distance > snapRange && visualOverlap <= 0) continue;
+
+    const center = (top + bottom) / 2;
+    const centerDistanceRatio = Math.abs(y - center) / thickness;
+    const visualCoverage = Math.min(1, visualOverlap / thickness);
+    const inset = Math.max(2, Math.min(6, thickness * 0.22));
+    const target = y < top ? top + inset : y > bottom ? bottom - inset : y;
+    candidates.push({ distance, centerDistanceRatio, overlap, visualCoverage, target });
+  }
+
+  if (!candidates.length) return y;
+  candidates.sort((a, b) => {
+    const coverageGap = b.visualCoverage - a.visualCoverage;
+    if (Math.abs(coverageGap) >= TEXT_SNAP_COVERAGE_PRIORITY_GAP) return coverageGap;
+    if (Math.abs(a.centerDistanceRatio - b.centerDistanceRatio) > 0.08) return a.centerDistanceRatio - b.centerDistanceRatio;
+    if (Math.abs(a.distance - b.distance) > 0.5) return a.distance - b.distance;
+    return b.overlap - a.overlap;
+  });
+
+  const best = candidates[0];
+  const second = candidates[1];
+  if (second &&
+      Math.abs(best.visualCoverage - second.visualCoverage) < 0.08 &&
+      Math.abs(best.centerDistanceRatio - second.centerDistanceRatio) < 0.08 &&
+      Math.abs(best.overlap - second.overlap) < 0.08) return y;
+  return best.target;
+}
+
+function snapVerticalLineToText(x: number, minY: number, maxY: number, textBoxes: TextBox[], canvasWidth: number, strokeWidthRatio: number) {
+  const strokeSpan = Math.max(1, maxY - minY);
+  const strokeRadius = strokeWidthForCanvas(canvasWidth, strokeWidthRatio) / 2;
+  const candidates: Array<{ distance: number; centerDistanceRatio: number; overlap: number; visualCoverage: number; target: number }> = [];
+
+  for (const box of textBoxes) {
+    if (Math.abs(box.baselineY) <= Math.abs(box.baselineX)) continue;
+    const chars = box.chars.filter((character) => character.y + character.height >= minY && character.y <= maxY);
+    if (!chars.length) continue;
+    const top = Math.min(...chars.map((character) => character.y));
+    const bottom = Math.max(...chars.map((character) => character.y + character.height));
+    const left = Math.min(...chars.map((character) => character.x));
+    const right = Math.max(...chars.map((character) => character.x + character.width));
+    const overlap = rangeOverlap(minY, maxY, top, bottom) / strokeSpan;
+    if (overlap < 0.08) continue;
+
+    const thickness = Math.max(1, median(chars.map((character) => character.width)));
+    const snapRange = Math.max(5, Math.min(thickness * TEXT_SNAP_RANGE_FACTOR, canvasWidth * TEXT_SNAP_MAX_RANGE_RATIO));
+    const distance = x < left ? left - x : x > right ? x - right : 0;
+    const visualOverlap = rangeOverlap(x - strokeRadius, x + strokeRadius, left, right);
+    if (distance > snapRange && visualOverlap <= 0) continue;
+
+    const center = (left + right) / 2;
+    const centerDistanceRatio = Math.abs(x - center) / thickness;
+    const visualCoverage = Math.min(1, visualOverlap / thickness);
+    const inset = Math.max(2, Math.min(6, thickness * 0.22));
+    const target = x < left ? left + inset : x > right ? right - inset : x;
+    candidates.push({ distance, centerDistanceRatio, overlap, visualCoverage, target });
+  }
+
+  if (!candidates.length) return x;
+  candidates.sort((a, b) => {
+    const coverageGap = b.visualCoverage - a.visualCoverage;
+    if (Math.abs(coverageGap) >= TEXT_SNAP_COVERAGE_PRIORITY_GAP) return coverageGap;
+    if (Math.abs(a.centerDistanceRatio - b.centerDistanceRatio) > 0.08) return a.centerDistanceRatio - b.centerDistanceRatio;
+    if (Math.abs(a.distance - b.distance) > 0.5) return a.distance - b.distance;
+    return b.overlap - a.overlap;
+  });
+
+  const best = candidates[0];
+  const second = candidates[1];
+  if (second &&
+      Math.abs(best.visualCoverage - second.visualCoverage) < 0.08 &&
+      Math.abs(best.centerDistanceRatio - second.centerDistanceRatio) < 0.08 &&
+      Math.abs(best.overlap - second.overlap) < 0.08) return x;
+  return best.target;
+}
+
+function straightenStroke(points: Point[], textBoxes: TextBox[], canvasWidth: number, canvasHeight: number, strokeWidthRatio: number) {
+  const axis = strokeAxis(points, canvasWidth, canvasHeight);
+  if (axis === "FREE") return points;
+
+  // points持續以0~1正規化座標儲存，只在方向判斷與文字磁吸時暫時轉為canvas pixel座標。
+  const pixels = points.map(([x, y]) => [x * canvasWidth, y * canvasHeight] as Point);
+  const xs = pixels.map((point) => point[0]);
+  const ys = pixels.map((point) => point[1]);
+  if (axis === "HORIZONTAL") {
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const rawY = median(ys);
+    const y = snapHorizontalLineToText(rawY, minX, maxX, textBoxes, canvasWidth, canvasHeight, strokeWidthRatio);
+    return [[minX / canvasWidth, y / canvasHeight], [maxX / canvasWidth, y / canvasHeight]] as Point[];
+  }
+
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const rawX = median(xs);
+  const x = snapVerticalLineToText(rawX, minY, maxY, textBoxes, canvasWidth, strokeWidthRatio);
+  return [[x / canvasWidth, minY / canvasHeight], [x / canvasWidth, maxY / canvasHeight]] as Point[];
 }
 
 function buildCharacterBoxes(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, width: number, fontHeight: number, baselineX: number, baselineY: number, verticalX: number, verticalY: number, fontFamily?: string, rtl = false): TextCharacter[] {
@@ -630,6 +845,8 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
           boxes.push({
             text: raw.str,
             chars: buildCharacterBoxes(ctx, raw.str, tx[4], tx[5], width, fontHeight * 1.25, baselineX, baselineY, verticalX, verticalY, fontFamily, raw.dir === "rtl"),
+            baselineX,
+            baselineY,
           });
         }
         if (!cancelled) {
@@ -774,14 +991,16 @@ export default function ReaderClient({ resourceId, courseId, studentId, title, a
     }
     const canvas = annotationCanvasRef.current!;
     const strokeWidthRatio = BRUSH_SIZE_RATIOS[brushSize - 1];
-    const text = extractTextFromStroke(textBoxesRef.current, points, canvas.width, canvas.height, strokeWidthRatio);
+    const adjustedPoints = straightenStroke(points, textBoxesRef.current, canvas.width, canvas.height, strokeWidthRatio);
+    const text = extractTextFromStroke(textBoxesRef.current, adjustedPoints, canvas.width, canvas.height, strokeWidthRatio);
+    drawHighlights({ color: tool, points: adjustedPoints, strokeWidthRatio });
     const next: Highlight = {
       id: crypto.randomUUID(),
       page: currentPage,
       type: tool === "RED" ? "IMPORTANT" : "QUESTION",
       color: tool,
       extractedText: text || null,
-      points,
+      points: adjustedPoints,
       strokeWidthRatio,
       recordedAt: new Date().toISOString(),
     };

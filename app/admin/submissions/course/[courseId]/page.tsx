@@ -49,7 +49,8 @@ export default async function SubmissionCoursePage({ params }: { params: Promise
               </div>
             </div>
             <div className="record-actions">
-              <a className="btn btn-outline btn-nowrap" href={`/api/admin/submissions/resources/${resource.id}/export`}>匯出CSV</a>
+              <a className="btn btn-outline btn-nowrap" href={`/api/admin/submissions/resources/${resource.id}/export`}>具名完整CSV</a>
+              <a className="btn btn-outline btn-nowrap" href={`/api/admin/submissions/resources/${resource.id}/export?identity=deidentified`}>去識別化CSV</a>
               <Link className="btn btn-primary btn-nowrap" href={`/admin/submissions/course/${course.id}/resource/${resource.id}`}>查看學生紀錄</Link>
             </div>
           </article>;

@@ -14,8 +14,8 @@ const navItems = [
   { href: "/admin/assistants", label: "助教管理" },
   { href: "/admin/assets", label: "PDF資產庫" },
   { href: "/admin/submissions", label: "閱讀/繳交紀錄" },
-  { href: "/admin/analytics", label: "學習分析" },
   { href: "/admin/highlights", label: "課程劃記總覽" },
+  { href: "/admin/analytics", label: "學習分析" },
   { href: "/admin/settings", label: "系統設定" },
 ];
 

@@ -7,7 +7,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ reso
   const auth = await requireApiAdmin();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
   const { resourceId } = await params;
-  const result = await buildResearchCsv(resourceId, parseActivityFilters(new URL(request.url).searchParams));
+  const searchParams = new URL(request.url).searchParams;
+  const identityMode = searchParams.get("identity") === "deidentified" ? "DEIDENTIFIED" : "IDENTIFIED";
+  const result = await buildResearchCsv(resourceId, parseActivityFilters(searchParams), { identityMode });
   if (!result) return NextResponse.json({ error: "找不到教材" }, { status: 404 });
   return new Response(result.csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${result.filename}"`, "Cache-Control": "no-store" } });
 }

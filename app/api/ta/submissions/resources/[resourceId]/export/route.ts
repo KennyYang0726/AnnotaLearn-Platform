@@ -12,7 +12,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ reso
   if (!resource) return NextResponse.json({ error: "找不到教材" }, { status: 404 });
   const assignment = await prisma.courseStaff.findUnique({ where: { userId_courseId: { userId: auth.user.id, courseId: resource.courseId } }, select: { id: true } });
   if (!assignment) return NextResponse.json({ error: "沒有此課程的匯出權限" }, { status: 403 });
-  const result = await buildResearchCsv(resourceId, parseActivityFilters(new URL(request.url).searchParams));
+  const searchParams = new URL(request.url).searchParams;
+  const identityMode = searchParams.get("identity") === "deidentified" ? "DEIDENTIFIED" : "IDENTIFIED";
+  const result = await buildResearchCsv(resourceId, parseActivityFilters(searchParams), { identityMode });
   if (!result) return NextResponse.json({ error: "找不到教材" }, { status: 404 });
   return new Response(result.csv, { headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="${result.filename}"`, "Cache-Control": "no-store" } });
 }
