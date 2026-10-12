@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { loadPdfJs } from "@/lib/pdf-client";
 
 type Point = [number, number];
@@ -18,6 +18,21 @@ function strokeColor(color: HighlightColor) {
   return color === "RED" ? "rgba(239,68,68,0.34)" : "rgba(250,204,21,0.40)";
 }
 
+function pointToSegmentDistance(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  if (dx === 0 && dy === 0) return Math.hypot(px - x1, py - y1);
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+type HighlightHover = {
+  highlight: Highlight;
+  x: number;
+  y: number;
+  placement: "above" | "below";
+};
+
 export default function AdminHighlightViewer({ resourceId, title, students, highlights }: { resourceId: string; title: string; students: Student[]; highlights: Highlight[] }) {
   const pdfCanvasRef = useRef<HTMLCanvasElement>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -33,6 +48,7 @@ export default function AdminHighlightViewer({ resourceId, title, students, high
   const [studentKeyword, setStudentKeyword] = useState("");
   const [pdfLoading, setPdfLoading] = useState(true);
   const [error, setError] = useState("");
+  const [highlightHover, setHighlightHover] = useState<HighlightHover | null>(null);
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const dateAndColorHighlights = useMemo(() => highlights.filter((highlight) => {
@@ -83,7 +99,73 @@ export default function AdminHighlightViewer({ resourceId, title, students, high
     }
   }, [pageHighlights]);
 
+  const handleHighlightMouseMove = useCallback((event: ReactMouseEvent<HTMLDivElement>) => {
+    const canvas = overlayCanvasRef.current;
+    if (!canvas || pdfLoading || pageHighlights.length === 0) {
+      setHighlightHover(null);
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) {
+      setHighlightHover(null);
+      return;
+    }
+
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) {
+      setHighlightHover(null);
+      return;
+    }
+
+    const canvasScale = canvas.width > 0 ? rect.width / canvas.width : 1;
+    let matchedHighlight: Highlight | null = null;
+
+    // 從最後繪製的劃記開始檢查，重疊時優先顯示視覺上位於上層的劃記。
+    for (let highlightIndex = pageHighlights.length - 1; highlightIndex >= 0; highlightIndex--) {
+      const highlight = pageHighlights[highlightIndex];
+      if (highlight.points.length < 2) continue;
+      const renderedStrokeWidth = Math.max(12 * canvasScale, rect.width * (highlight.strokeWidthRatio ?? 0.018));
+      const hitTolerance = renderedStrokeWidth / 2 + 5;
+      let highlightMatched = false;
+
+      for (let pointIndex = 1; pointIndex < highlight.points.length; pointIndex++) {
+        const [previousX, previousY] = highlight.points[pointIndex - 1];
+        const [currentX, currentY] = highlight.points[pointIndex];
+        const distance = pointToSegmentDistance(
+          x,
+          y,
+          previousX * rect.width,
+          previousY * rect.height,
+          currentX * rect.width,
+          currentY * rect.height,
+        );
+        if (distance <= hitTolerance) highlightMatched = true;
+      }
+      if (highlightMatched) {
+        matchedHighlight = highlight;
+        break;
+      }
+    }
+
+    if (!matchedHighlight) {
+      setHighlightHover(null);
+      return;
+    }
+
+    const horizontalMargin = Math.min(116, rect.width / 2);
+    setHighlightHover({
+      highlight: matchedHighlight,
+      x: Math.min(rect.width - horizontalMargin, Math.max(horizontalMargin, x)),
+      y,
+      placement: y >= 72 ? "above" : "below",
+    });
+  }, [pageHighlights, pdfLoading]);
+
   useEffect(() => { drawOverlay(); }, [drawOverlay]);
+
+  useEffect(() => { setHighlightHover(null); }, [currentPage, pageHighlights]);
 
   useEffect(() => {
     let cancelled = false;
@@ -156,7 +238,23 @@ export default function AdminHighlightViewer({ resourceId, title, students, high
         <div className="highlight-page-stats"><span className="badge">本頁{pageStudentCount}位學生有劃記</span><span className="badge">紅色{redCount}筆</span><span className="badge">黃色{yellowCount}筆</span></div>
         <div className="pdf-stage admin-highlight-stage">
           {pdfLoading && <div className="card panel">PDF載入中…</div>}
-          <div className="canvas-wrap" style={{ display: pdfLoading ? "none" : "block" }}><canvas ref={pdfCanvasRef} /><canvas ref={overlayCanvasRef} className="annotation-canvas admin-highlight-overlay" /></div>
+          <div
+            className="canvas-wrap admin-highlight-canvas-wrap"
+            style={{ display: pdfLoading ? "none" : "block" }}
+            onMouseMove={handleHighlightMouseMove}
+            onMouseLeave={() => setHighlightHover(null)}
+          >
+            <canvas ref={pdfCanvasRef} />
+            <canvas ref={overlayCanvasRef} className="annotation-canvas admin-highlight-overlay" />
+            {highlightHover && <div
+              className={`admin-highlight-hover-label admin-highlight-hover-label-${highlightHover.placement}`}
+              style={{ left: highlightHover.x, top: highlightHover.y }}
+              role="tooltip"
+            >
+              <strong>{highlightHover.highlight.username}</strong>
+              <span>{highlightHover.highlight.displayName ?? ""}</span>
+            </div>}
+          </div>
         </div>
         <div className="reader-controls"><button className="btn" disabled={currentPage <= 1} onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}>←上一頁</button><div className="row"><span>跳至</span><input aria-label="跳頁" type="number" min={1} max={numPages || 1} value={currentPage} onChange={(event) => { const page = Number(event.target.value); if (Number.isInteger(page) && page >= 1 && (!numPages || page <= numPages)) setCurrentPage(page); }} style={{ width: 82 }} /><span>頁</span></div><button className="btn" disabled={!numPages || currentPage >= numPages} onClick={() => setCurrentPage((page) => Math.min(numPages, page + 1))}>下一頁→</button></div>
       </div>

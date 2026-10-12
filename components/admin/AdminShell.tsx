@@ -16,6 +16,7 @@ const navItems = [
   { href: "/admin/submissions", label: "閱讀/繳交紀錄" },
   { href: "/admin/highlights", label: "課程劃記總覽" },
   { href: "/admin/analytics", label: "學習分析" },
+  { href: "/admin/insights", label: "教學洞察" },
   { href: "/admin/settings", label: "系統設定" },
 ];
 
